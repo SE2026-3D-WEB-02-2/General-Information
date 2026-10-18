@@ -1,0 +1,9 @@
+{
+  "name": "spriter-3d-review",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Multi-user 3D glTF Annotation & Design Review System",
+  "scripts": {
+    "test": "node --test tests/*.spec.mjs"
+  }
+}
