@@ -1,39 +1,65 @@
-import { AnnotationService } from './annotation.service';
+import { type AnnotationStatus } from '../../../../packages/shared/src/domain/annotation-policy.ts';
+import { AnnotationService } from './annotation.service.ts';
 
-// [BEFORE REFACTORING]
-// Smell 1: Business rules are duplicated in API controller (and slightly drift from UI)
-// Smell 2: Exposes internal DB fields directly & performs unversioned overwrite (Lost Update vulnerability)
+// [AFTER REFACTORING]
+// - Thin transport adapter: no duplicated business rules in controller
+// - Enforces expectedVersion contract and maps domain outcomes to HTTP 200 / 409 / 422
 
 export class AnnotationController {
-  constructor(private readonly annotationService: AnnotationService) {}
+  private readonly annotationService: AnnotationService;
+
+  constructor(annotationService: AnnotationService) {
+    this.annotationService = annotationService;
+  }
 
   public async patchAnnotation(req: {
     params: { id: string };
+    actorId: string;
     body: {
-      status?: 'OPEN' | 'IN_PROGRESS' | 'RESOLVED' | 'ARCHIVED';
+      expectedVersion: number;
+      status?: AnnotationStatus;
       position?: [number, number, number];
       normal?: [number, number, number];
     };
   }) {
-    const existing = await this.annotationService.findRawById(req.params.id);
-    if (!existing) {
-      return { statusCode: 404, body: { message: 'Not found' } };
+    if (!Number.isInteger(req.body.expectedVersion) || req.body.expectedVersion < 1) {
+      return {
+        statusCode: 400,
+        body: { errorCode: 'MISSING_EXPECTED_VERSION', message: 'expectedVersion (int >= 1) is required' },
+      };
     }
 
-    // Smell 1: Duplicated Business Rule in API (drifted from UI: checks >= 5 chars instead of >= 10, forgets IN_PROGRESS check)
-    if (req.body.status === 'RESOLVED') {
-      if (existing.comments.length === 0 || existing.comments[existing.comments.length - 1].content.length < 5) {
-        return { statusCode: 400, body: { message: 'Cannot resolve without explanation comment' } };
-      }
-      const [nx, ny, nz] = req.body.normal ?? existing.normal;
-      const len = Math.sqrt(nx * nx + ny * ny + nz * nz);
-      if (Math.abs(len - 1.0) > 0.05) {
-        return { statusCode: 400, body: { message: 'Invalid normal vector' } };
-      }
-    }
+    const result = await this.annotationService.updateWithConcurrencyControl(
+      req.params.id,
+      req.actorId,
+      req.body,
+    );
 
-    // Smell 2: Blind overwrite without checking version -> causes Lost Update when 2 users update concurrently!
-    const updated = await this.annotationService.overwriteDirectly(req.params.id, req.body);
-    return { statusCode: 200, body: updated };
+    switch (result.status) {
+      case 'NOT_FOUND':
+        return { statusCode: 404, body: { errorCode: 'ANNOTATION_NOT_FOUND' } };
+      case 'CONCURRENCY_CONFLICT':
+        return {
+          statusCode: 409,
+          body: {
+            errorCode: 'CONCURRENCY_CONFLICT',
+            currentVersion: result.currentVersion,
+            serverSnapshot: result.serverSnapshot,
+          },
+        };
+      case 'INVARIANT_VIOLATED':
+        return {
+          statusCode: 422,
+          body: {
+            errorCode: result.reasonCode,
+            message: result.message,
+          },
+        };
+      case 'OK':
+        return {
+          statusCode: 200,
+          body: result.snapshot,
+        };
+    }
   }
 }

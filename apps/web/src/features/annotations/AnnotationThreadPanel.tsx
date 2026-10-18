@@ -1,63 +1,100 @@
-import * as THREE from 'three';
+import {
+  type AnnotationDomainSnapshot,
+  type AnnotationStatus,
+  evaluateAnnotationMutation,
+  type PolicyEvaluationResult,
+  shouldApplyIncomingSnapshot,
+} from '../../../../../packages/shared/src/domain/annotation-policy.ts';
 
-// [BEFORE REFACTORING]
-// Smell 1: Business rules for status transition & spatial anchor validation are hardcoded in UI
-// Smell 3: Direct coupling to THREE.Vector3, raw fetch(), and unversioned socket overwrite in UI component
+// [AFTER REFACTORING]
+// - Delegates all business rule checks to shared Pure Domain Policy (packages/shared)
+// - Decoupled from THREE.Vector3 and raw fetch/socket via injected port interfaces
+// - Sends expectedVersion (If-Match / OCC) and guards against stale out-of-order WebSocket events
 
-export interface UiAnnotationRecord {
-  id: string;
-  modelId: string;
-  authorId: string;
-  status: 'OPEN' | 'IN_PROGRESS' | 'RESOLVED' | 'ARCHIVED';
-  position: [number, number, number];
-  normal: [number, number, number];
-  comments: Array<{ id: string; authorId: string; content: string; createdAt: string }>;
+export interface AnnotationApiPort {
+  patchAnnotation(
+    id: string,
+    payload: {
+      expectedVersion: number;
+      status?: AnnotationStatus;
+      position?: [number, number, number];
+      normal?: [number, number, number];
+    },
+  ): Promise<
+    | { ok: true; data: AnnotationDomainSnapshot }
+    | {
+        ok: false;
+        statusCode: 409 | 422;
+        errorCode: string;
+        serverSnapshot?: AnnotationDomainSnapshot;
+      }
+  >;
+}
+
+export interface RealtimeSubscriptionPort {
+  onAnnotationUpdated(handler: (snapshot: AnnotationDomainSnapshot) => void): void;
 }
 
 export class AnnotationThreadPanelController {
-  private currentAnnotation: UiAnnotationRecord;
+  private currentAnnotation: AnnotationDomainSnapshot;
+  private conflictSnapshot: AnnotationDomainSnapshot | null = null;
+  private readonly apiPort: AnnotationApiPort;
+  private readonly realtimePort: RealtimeSubscriptionPort;
 
-  constructor(initial: UiAnnotationRecord, private socket: { on: (evt: string, cb: (data: any) => void) => void }) {
+  constructor(
+    initial: AnnotationDomainSnapshot,
+    apiPort: AnnotationApiPort,
+    realtimePort: RealtimeSubscriptionPort,
+  ) {
     this.currentAnnotation = initial;
+    this.apiPort = apiPort;
+    this.realtimePort = realtimePort;
 
-    // Smell 3: Blindly overwrites local state on incoming socket event without checking version
-    this.socket.on('annotation:updated', (incoming: UiAnnotationRecord) => {
-      if (incoming.id === this.currentAnnotation.id) {
+    this.realtimePort.onAnnotationUpdated((incoming) => {
+      if (
+        incoming.id === this.currentAnnotation.id &&
+        shouldApplyIncomingSnapshot(this.currentAnnotation.version, incoming.version)
+      ) {
         this.currentAnnotation = incoming;
       }
     });
   }
 
-  // Smell 1: Duplicated Business Rule in UI (checks if annotation can be transitioned to targetStatus)
-  public canTransitionStatus(targetStatus: 'OPEN' | 'IN_PROGRESS' | 'RESOLVED' | 'ARCHIVED'): boolean {
-    if (this.currentAnnotation.status === 'ARCHIVED') {
-      return false;
-    }
-    if (targetStatus === 'RESOLVED') {
-      const hasResolutionComment =
-        this.currentAnnotation.comments.length >= 1 &&
-        this.currentAnnotation.comments[this.currentAnnotation.comments.length - 1].content.trim().length >= 10;
-      const normalVec = new THREE.Vector3(...this.currentAnnotation.normal);
-      const isNormalValid = Math.abs(normalVec.length() - 1.0) < 0.01;
-      return (
-        (this.currentAnnotation.status === 'OPEN' || this.currentAnnotation.status === 'IN_PROGRESS') &&
-        hasResolutionComment &&
-        isNormalValid
-      );
-    }
-    return true;
+  public getSnapshot(): AnnotationDomainSnapshot {
+    return this.currentAnnotation;
   }
 
-  // Smell 2 & 3: Sends blind update without expectedVersion, directly coupled to network fetch
-  public async updateStatus(targetStatus: 'OPEN' | 'IN_PROGRESS' | 'RESOLVED' | 'ARCHIVED'): Promise<void> {
-    if (!this.canTransitionStatus(targetStatus)) {
-      throw new Error('UI_VALIDATION_FAILED: Cannot transition status');
+  public getConflictState(): AnnotationDomainSnapshot | null {
+    return this.conflictSnapshot;
+  }
+
+  public canTransitionStatus(targetStatus: AnnotationStatus): PolicyEvaluationResult {
+    return evaluateAnnotationMutation(this.currentAnnotation, { status: targetStatus });
+  }
+
+  public async updateStatus(targetStatus: AnnotationStatus): Promise<void> {
+    const check = this.canTransitionStatus(targetStatus);
+    if (!check.allowed) {
+      throw new Error(`DOMAIN_PRECHECK_REJECTED:${check.reasonCode}`);
     }
-    const response = await fetch(`/api/v1/annotations/${this.currentAnnotation.id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status: targetStatus }),
+
+    const result = await this.apiPort.patchAnnotation(this.currentAnnotation.id, {
+      expectedVersion: this.currentAnnotation.version,
+      status: targetStatus,
     });
-    this.currentAnnotation = await response.json();
+
+    if (result.ok) {
+      this.currentAnnotation = result.data;
+      this.conflictSnapshot = null;
+      return;
+    }
+
+    if (result.statusCode === 409 && result.serverSnapshot) {
+      // Preserve user's context and surface server snapshot for conflict resolution instead of silent overwrite
+      this.conflictSnapshot = result.serverSnapshot;
+      throw new Error(`CONCURRENCY_CONFLICT:v${result.serverSnapshot.version}`);
+    }
+
+    throw new Error(`API_REJECTED:${result.errorCode}`);
   }
 }
