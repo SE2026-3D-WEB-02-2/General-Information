@@ -168,7 +168,7 @@ sequenceDiagram
 
 - **Phát biểu Invariant:**
   > **Invariant I1 (Resolution & Spatial Lock Invariant):**
-  > 1. Một Annotation chỉ được chuyển sang trạng thái `RESOLVED` khi trạng thái hiện tại là `OPEN` hoặc `IN_PROGRESS` **VÀ** trong Thread đã có ít nhất 01 comment phản hồi có độ dài $\ge 10$ ký tự **VÀ** vector pháp tuyến bề mặt 3D (`normal`) là vector đơn vị hợp lệ ($||\vec{n}|| - 1.0| \le 0.01$).
+  > 1. Một Annotation chỉ được chuyển sang trạng thái `RESOLVED` khi trạng thái hiện tại là `OPEN` hoặc `IN_PROGRESS` **VÀ** trong Thread đã có ít nhất 01 comment phản hồi có độ dài $\ge 10$ ký tự **VÀ** vector pháp tuyến bề mặt 3D (`normal`) là vector đơn vị hợp lệ ($|\|\vec{n}\| - 1.0| \le 0.01$).
   > 2. Khi Annotation đang ở trạng thái `RESOLVED` (hoặc `ARCHIVED`), tọa độ điểm neo 3D (`position`, `normal`) bị **khóa bất biến** (`SPATIAL_LOCKED_WHEN_RESOLVED`) — không ai được phép xê dịch vị trí Pin trên mô hình 3D nếu chưa mở lại (`IN_PROGRESS`) Annotation đó.
 
 - **Tại sao bắt buộc phải bảo vệ ở Server/Database mà không chỉ ở UI?**
@@ -258,7 +258,7 @@ Nhóm sẽ **không** chuyển sang kiến trúc khác chỉ vì lý do cảm t�
   * Trích xuất toàn bộ quy tắc chuyển trạng thái và kiểm tra hình học sang hàm thuần khiết `evaluateAnnotationMutation()` và `validateUnitNormal()` tại [`packages/shared/src/domain/annotation-policy.ts`](file:///Users/nekover2/Developments/Spriter/packages/shared/src/domain/annotation-policy.ts).
   * Xóa toàn bộ nhánh `if/else` kiểm tra nghiệp vụ thủ công ở cả `AnnotationThreadPanel.tsx` và `annotation.controller.ts`, thay bằng lời gọi tới module dùng chung.
 * **Regression Safety:**
-  * Viết Unit Test kiểm증 trực tiếp hàm `evaluateAnnotationMutation` với đầy đủ các biên (không có comment, comment `< 10` ký tự, comment $\ge 10$ ký tự, vector pháp tuyến sai lệch, trạng thái `ARCHIVED`) trước khi thay thế ở UI và API.
+  * Viết Unit Test kiểm chứng trực tiếp hàm `evaluateAnnotationMutation` với đầy đủ các biên (không có comment, comment `< 10` ký tự, comment $\ge 10$ ký tự, vector pháp tuyến sai lệch, trạng thái `ARCHIVED`) trước khi thay thế ở UI và API.
 
 #### Vấn đề 2: Vi phạm Information Hiding & Thiếu Concurrency Boundary (Lost Update & Leaky DB Abstraction)
 * **Evidence (Tại commit `4aad8eb`):**
