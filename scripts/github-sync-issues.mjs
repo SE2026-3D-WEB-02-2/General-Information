@@ -507,7 +507,10 @@ npm run test:web && npm run verify
 
 const isDryRun = process.argv.includes('--dry-run');
 const token = process.env.GITHUB_TOKEN;
-const repo = process.env.GITHUB_REPOSITORY || process.env.GITHUB_REPO;
+const repo =
+  process.env.GITHUB_REPOSITORY ||
+  process.env.GITHUB_REPO ||
+  'SE2026-3D-WEB-02-2/General-Information';
 
 async function ghRequest(endpoint, method = 'GET', body = undefined) {
   const res = await fetch(`https://api.github.com/repos/${repo}${endpoint}`, {
