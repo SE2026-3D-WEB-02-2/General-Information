@@ -214,6 +214,29 @@ export interface ImportAnnotationsResponseDto {
   annotations: AnnotationDomainSnapshot[];
 }
 
+// ============================================================================
+// 5. OPERATIONAL TELEMETRY & ADR-001 CONFLICT MONITOR CONTRACTS ([A9 / A10])
+// ============================================================================
+
+export const ADR_001_CONFLICT_RATE_THRESHOLD = 0.08;
+
+export interface OperationalTelemetryDto {
+  windowDays: number;
+  totalAuditEvents: number;
+  totalPatchAttempts: number;
+  updatedCount: number;
+  conflictCount: number;
+  invariantViolationCount: number;
+  /** Ratio in [0, 1]: conflictCount / totalPatchAttempts */
+  conflictRate: number;
+  /** Percentage in [0, 100] rounded to 2 decimal places */
+  conflictRatePercent: number;
+  adr001Threshold: number;
+  /** True when conflictRate > 0.08 (8%), triggering ADR-001 architecture review */
+  adr001ReviewTriggered: boolean;
+  generatedAt: string;
+}
+
 /**
  * Validates an ExportFileV1 payload and returns per-item errors if any annotation violates
  * schema or domain invariants (e.g. RESOLVED without >=10 char comment, non-unit normal vector).

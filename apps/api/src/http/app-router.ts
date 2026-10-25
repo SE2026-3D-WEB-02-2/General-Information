@@ -1,5 +1,7 @@
 import { MAX_API_JSON_BODY_BYTES, type ServerRealtimeEvent } from '@spriter/shared';
 import { InMemoryAnnotationRepository } from '../modules/annotations/adapters/in-memory.repository.ts';
+import { OperationalLogPurgeWorker } from '../modules/annotations/adapters/log-purge.worker.ts';
+import { SocketRealtimeGateway } from '../modules/annotations/adapters/socket-realtime.gateway.ts';
 import { AnnotationService } from '../modules/annotations/domain/annotation.service.ts';
 import { type ClockPort, type RealtimePublisherPort } from '../modules/annotations/domain/ports.ts';
 import { AnnotationController } from '../modules/annotations/http/annotation.controller.ts';
@@ -36,6 +38,8 @@ export interface HttpResponseEnvelope {
  */
 export class SpriterApiApplication {
   public readonly annotationRepo: InMemoryAnnotationRepository;
+  public readonly realtimeGateway: SocketRealtimeGateway;
+  public readonly purgeWorker: OperationalLogPurgeWorker;
   public readonly authService: AuthService;
   public readonly modelService: ModelService;
   public readonly annotationService: AnnotationService;
@@ -48,14 +52,16 @@ export class SpriterApiApplication {
   constructor(options?: { clock?: ClockPort; realtime?: RealtimePublisherPort }) {
     const nowFn = options?.clock ? () => options.clock!.now() : () => new Date();
     this.annotationRepo = new InMemoryAnnotationRepository();
+    this.realtimeGateway = new SocketRealtimeGateway();
 
     const modelRepo = new InMemoryModelRepository((readyModel) => {
       this.annotationRepo.seedModel(readyModel);
     });
 
     const realtime: RealtimePublisherPort = options?.realtime ?? {
-      publishToModelRoom: (_modelId, event) => {
+      publishToModelRoom: (modelId, event) => {
         this.publishedEvents.push(event);
+        this.realtimeGateway.publishToModelRoom(modelId, event);
       },
     };
 
@@ -66,6 +72,12 @@ export class SpriterApiApplication {
       { now: nowFn },
       realtime,
     );
+
+    this.realtimeGateway.bindServices({
+      authService: this.authService,
+      annotationService: this.annotationService,
+    });
+    this.purgeWorker = new OperationalLogPurgeWorker(this.annotationService, nowFn);
 
     this.authController = new AuthController(this.authService);
     this.modelController = new ModelController(this.modelService);
@@ -84,9 +96,19 @@ export class SpriterApiApplication {
 
     const cleanPath = req.path.split('?')[0]!;
 
-    // 2. Public Health & Auth Endpoints
+    // 2. Public Health, Telemetry ([A10]) & Auth Endpoints
     if (req.method === 'GET' && cleanPath === '/health') {
       return { statusCode: 200, body: { status: 'ok' } };
+    }
+    if (req.method === 'GET' && (cleanPath === '/metrics' || cleanPath === '/api/v1/metrics')) {
+      return {
+        statusCode: 200,
+        body: this.annotationService.getOperationalTelemetry(),
+      };
+    }
+    if (req.method === 'POST' && cleanPath === '/api/v1/internal/audit-logs/purge') {
+      const summary = await this.purgeWorker.runOnce();
+      return { statusCode: 200, body: summary };
     }
     if (req.method === 'POST' && cleanPath === '/api/v1/auth/register') {
       return this.authController.register({ body: (req.body ?? {}) as any });

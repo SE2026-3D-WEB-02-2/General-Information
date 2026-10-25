@@ -1,4 +1,5 @@
 import {
+  ADR_001_CONFLICT_RATE_THRESHOLD,
   type AnnotationDomainSnapshot,
   type AnnotationStatus,
   type CameraState,
@@ -8,6 +9,7 @@ import {
   type ImportAnnotationsRequestDto,
   type ImportItemError,
   type ListAnnotationsQueryDto,
+  type OperationalTelemetryDto,
   type PaginatedAnnotationsResponseDto,
   type UserRole,
   type Vec3,
@@ -84,6 +86,44 @@ export class AnnotationService {
 
   public async purgeExpiredOperationalLogs(): Promise<number> {
     return this.repo.purgeExpiredAuditLogs(this.clock.now());
+  }
+
+  /**
+   * [A10] Computes operational telemetry and evaluates ADR-001 architecture review threshold (> 8% conflict rate).
+   */
+  public getOperationalTelemetry(): OperationalTelemetryDto {
+    const nowMs = this.clock.now().getTime();
+    const activeLogs = this.repo
+      .getAuditLogs()
+      .filter((entry) => Date.parse(entry.expiresAt) > nowMs);
+
+    let updatedCount = 0;
+    let conflictCount = 0;
+    let invariantViolationCount = 0;
+
+    for (const log of activeLogs) {
+      if (log.outcome === 'UPDATED') updatedCount++;
+      else if (log.outcome === 'CONCURRENCY_CONFLICT') conflictCount++;
+      else if (log.outcome === 'INVARIANT_VIOLATION') invariantViolationCount++;
+    }
+
+    const totalPatchAttempts = updatedCount + conflictCount + invariantViolationCount;
+    const conflictRate = totalPatchAttempts > 0 ? conflictCount / totalPatchAttempts : 0;
+    const conflictRatePercent = Math.round(conflictRate * 10_000) / 100;
+
+    return {
+      windowDays: OPERATIONAL_LOG_TTL_DAYS,
+      totalAuditEvents: activeLogs.length,
+      totalPatchAttempts,
+      updatedCount,
+      conflictCount,
+      invariantViolationCount,
+      conflictRate,
+      conflictRatePercent,
+      adr001Threshold: ADR_001_CONFLICT_RATE_THRESHOLD,
+      adr001ReviewTriggered: conflictRate > ADR_001_CONFLICT_RATE_THRESHOLD,
+      generatedAt: this.clock.now().toISOString(),
+    };
   }
 
   private toDomainSnapshot(row: InternalDbAnnotationRecord): AnnotationDomainSnapshot {

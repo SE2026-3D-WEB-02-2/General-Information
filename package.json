@@ -9,10 +9,12 @@
     "apps/*"
   ],
   "scripts": {
+    "dev:api": "node apps/api/src/server.ts",
     "test": "node --test packages/shared/test/*.spec.ts apps/api/test/*.spec.ts apps/web/test/*.spec.ts",
     "test:shared": "node --test packages/shared/test/*.spec.ts",
     "test:api": "node --test apps/api/test/*.spec.ts",
     "test:web": "node --test apps/web/test/*.spec.ts",
+    "test:load": "node scripts/load-test-984.mjs",
     "arch:check": "node scripts/arch-check.mjs",
     "verify": "npm run arch:check && npm test",
     "github:sync": "node scripts/github-sync-issues.mjs",

@@ -13,7 +13,7 @@ import {
 } from '../src/modules/annotations/domain/annotation.service.ts';
 import { AnnotationController } from '../src/modules/annotations/http/annotation.controller.ts';
 
-describe('@spriter/api — Milestone M1 & M2 Backend Suite ([A1]–[A6])', () => {
+describe('@spriter/api — Full Stream A Backend Suite (M1–M4: [A1]–[A10])', () => {
   it('1. [A2/A4] Protects server-side spatial lock invariant when annotation is already RESOLVED', async () => {
     const service = new AnnotationService();
     const controller = new AnnotationController(service);
@@ -518,5 +518,162 @@ describe('@spriter/api — Milestone M1 & M2 Backend Suite ([A1]–[A6])', () =>
     );
     assert.equal(staleResult, false);
     assert.equal(executedQueries.length, 1);
+  });
+
+  it('9. [A7] SocketRealtimeGateway enforces JWT auth on room:join, broadcasts post-commit events, and returns missedAnnotations on reconnect', async () => {
+    const app = new SpriterApiApplication();
+    const loginRes = await app.handleRequest({
+      method: 'POST',
+      path: '/api/v1/auth/login',
+      body: { email: 'lead@spriter.local', password: 'SpriterLead#2026' },
+    });
+    const accessToken = (loginRes.body as any).accessToken as string;
+    const bearer = `Bearer ${accessToken}`;
+
+    // 1. Rejects room:join with invalid token
+    const badAuthJoin = await app.realtimeGateway.joinModelRoom({
+      socketId: 'sock-unauth',
+      auth: { token: 'invalid-jwt-token' },
+      payload: { modelId: 'model-gltf-01' },
+      onEvent: () => {},
+    });
+    assert.equal(badAuthJoin.ok, false);
+    assert.equal(badAuthJoin.errorCode, 'UNAUTHORIZED');
+
+    // 2. Valid subscriber joins room `model:model-gltf-01`
+    const receivedEvents: ServerRealtimeEvent[] = [];
+    const goodJoin = await app.realtimeGateway.joinModelRoom({
+      socketId: 'sock-huy-3d',
+      auth: { token: accessToken },
+      payload: { modelId: 'model-gltf-01' },
+      onEvent: (evt) => receivedEvents.push(evt),
+    });
+    assert.equal(goodJoin.ok, true);
+    assert.equal(goodJoin.room, 'model:model-gltf-01');
+
+    // 3. Create annotation (v1) + update (v2) + failed 409 conflict -> only 2 committed events broadcast!
+    const createdRes = await app.handleRequest({
+      method: 'POST',
+      path: '/api/v1/models/model-gltf-01/annotations',
+      headers: { authorization: bearer },
+      body: {
+        position: [0, 1, 0],
+        normal: [0, 1, 0],
+        cameraState: { position: [0, 2, 5], target: [0, 1, 0] },
+        initialComment: 'Realtime socket gateway verification comment.',
+      },
+    });
+    const annId = (createdRes.body as any).id as string;
+
+    await app.handleRequest({
+      method: 'PATCH',
+      path: `/api/v1/annotations/${annId}`,
+      headers: { authorization: bearer },
+      body: { expectedVersion: 1, status: 'IN_PROGRESS' },
+    });
+
+    // Stale PATCH (expectedVersion: 1 when current is 2) -> 409 Conflict -> MUST NOT broadcast event
+    const conflictRes = await app.handleRequest({
+      method: 'PATCH',
+      path: `/api/v1/annotations/${annId}`,
+      headers: { authorization: bearer },
+      body: { expectedVersion: 1, status: 'RESOLVED' },
+    });
+    assert.equal(conflictRes.statusCode, 409);
+
+    assert.equal(receivedEvents.length, 2);
+    assert.equal(receivedEvents[0]?.type, 'annotation:created');
+    assert.equal(receivedEvents[1]?.type, 'annotation:updated');
+
+    // 4. Reconnecting client passes `knownVersions: { [annId]: 1 }` -> receives v2 in `missedAnnotations`
+    const reconnectAck = await app.realtimeGateway.joinModelRoom({
+      socketId: 'sock-hieu-reconnect',
+      auth: { token: accessToken },
+      payload: {
+        modelId: 'model-gltf-01',
+        knownVersions: { [annId]: 1 },
+      },
+      onEvent: () => {},
+    });
+    assert.equal(reconnectAck.ok, true);
+    assert.equal(reconnectAck.missedAnnotations?.length, 1);
+    assert.equal(reconnectAck.missedAnnotations?.[0]?.id, annId);
+    assert.equal(reconnectAck.missedAnnotations?.[0]?.version, 2);
+  });
+
+  it('10. [A8/A9/A10] Verifies 984 concurrent HTTP/App tasks p95 <= 2.5s, 7-day Purge Worker, and ADR-001 (/metrics) >8% conflict trigger', async () => {
+    let clockNow = new Date('2026-10-25T12:00:00.000Z');
+    const app = new SpriterApiApplication({ clock: { now: () => clockNow } });
+
+    const loginRes = await app.handleRequest({
+      method: 'POST',
+      path: '/api/v1/auth/login',
+      body: { email: 'lead@spriter.local', password: 'SpriterLead#2026' },
+    });
+    const bearer = `Bearer ${(loginRes.body as any).accessToken}`;
+
+    const createRes = await app.handleRequest({
+      method: 'POST',
+      path: '/api/v1/models/model-gltf-01/annotations',
+      headers: { authorization: bearer },
+      body: {
+        position: [0, 0, 0],
+        normal: [0, 1, 0],
+        cameraState: { position: [0, 1, 4], target: [0, 0, 0] },
+        initialComment: 'Hotspot pin for 984-task p95 and ADR-001 telemetry verification.',
+      },
+    });
+    const annId = (createRes.body as any).id as string;
+
+    const latenciesMs: number[] = [];
+    const CONCURRENT_TASKS = 984;
+
+    await Promise.all(
+      Array.from({ length: CONCURRENT_TASKS }, async (_, idx) => {
+        const t0 = performance.now();
+        await app.handleRequest({
+          method: 'PATCH',
+          path: `/api/v1/annotations/${annId}`,
+          headers: { authorization: bearer },
+          body: {
+            expectedVersion: 1,
+            status: idx % 2 === 0 ? 'IN_PROGRESS' : 'RESOLVED',
+          },
+        });
+        latenciesMs.push(performance.now() - t0);
+      }),
+    );
+
+    latenciesMs.sort((a, b) => a - b);
+    const p95Ms = latenciesMs[Math.floor(latenciesMs.length * 0.95)]!;
+    assert.ok(p95Ms <= 2500, `Expected p95 (${p95Ms}ms) <= 2500ms`);
+
+    // [A10] Check /api/v1/metrics -> 983 conflicts out of 984 patch attempts (> 8% threshold) -> adr001ReviewTriggered = true
+    const metricsRes = await app.handleRequest({
+      method: 'GET',
+      path: '/api/v1/metrics',
+    });
+    assert.equal(metricsRes.statusCode, 200);
+    const telemetry = metricsRes.body as any;
+    assert.equal(telemetry.totalPatchAttempts, CONCURRENT_TASKS);
+    assert.equal(telemetry.updatedCount, 1);
+    assert.equal(telemetry.conflictCount, CONCURRENT_TASKS - 1);
+    assert.equal(telemetry.adr001ReviewTriggered, true);
+
+    // [A9] Advance clock by 8 days and trigger Purge Worker endpoint -> purges all 985 logs (1 CREATED + 984 PATCH)
+    clockNow = new Date('2026-11-02T14:00:00.000Z');
+    const purgeRes = await app.handleRequest({
+      method: 'POST',
+      path: '/api/v1/internal/audit-logs/purge',
+    });
+    assert.equal(purgeRes.statusCode, 200);
+    assert.equal((purgeRes.body as any).purgedCount, CONCURRENT_TASKS + 1);
+
+    const metricsAfterPurge = await app.handleRequest({
+      method: 'GET',
+      path: '/api/v1/metrics',
+    });
+    assert.equal((metricsAfterPurge.body as any).totalAuditEvents, 0);
+    assert.equal((metricsAfterPurge.body as any).adr001ReviewTriggered, false);
   });
 });

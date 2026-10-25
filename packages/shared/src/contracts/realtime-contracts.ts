@@ -18,6 +18,8 @@ export interface RoomJoinAck {
   ok: boolean;
   room: string;
   serverTime: string;
+  /** Annotations whose server version > client's knownVersions[id], returned immediately on room:join */
+  missedAnnotations?: AnnotationDomainSnapshot[];
   errorCode?: 'UNAUTHORIZED' | 'MODEL_NOT_FOUND';
 }
 
