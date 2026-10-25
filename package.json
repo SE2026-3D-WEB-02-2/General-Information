@@ -9,6 +9,8 @@
     "apps/*"
   ],
   "scripts": {
+    "dev:web": "npm run dev -w @spriter/web",
+    "build:web": "npm run build -w @spriter/web",
     "dev:api": "node apps/api/src/server.ts",
     "test": "node --test packages/shared/test/*.spec.ts apps/api/test/*.spec.ts apps/web/test/*.spec.ts",
     "test:shared": "node --test packages/shared/test/*.spec.ts",

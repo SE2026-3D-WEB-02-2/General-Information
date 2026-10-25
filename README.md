@@ -15,9 +15,19 @@ npm install
 # 2. Chạy toàn bộ cổng kiểm tra kiến trúc (R1-R6) và bộ Unit/Boundary Tests
 npm run verify
 
-# 3. Xem danh sách 4 Milestones & 27 Issues chuẩn bị đồng bộ lên GitHub
+# 3. Chạy Collaboration UI (dữ liệu mẫu, chưa cần API/3D thật)
+npm run dev:web
+
+# 4. Kiểm tra bản web production
+npm run build:web
+
+# 5. Xem danh sách 4 Milestones & 27 Issues chuẩn bị đồng bộ lên GitHub
 npm run github:dry-run
 ```
+
+Mở địa chỉ Vite in ra terminal, mặc định `http://localhost:5173/`. Bản demo dùng `FakeViewportBridge` và `FakeWorkspaceApi`: bấm **Thêm annotation** rồi **Mô phỏng chọn bề mặt** để thử luồng đặt pin.
+
+Để thử HTTP adapter, đặt `VITE_DATA_MODE=live`, `VITE_API_BASE_URL=http://localhost:4000` và `VITE_MODEL_ID=model-gltf-01` trong `apps/web/.env.local`, rồi chạy `npm run dev:api` và `npm run dev:web`. Backend hiện mặc định dùng kho dữ liệu trong bộ nhớ; Socket.io server và object storage thật cần được nối ở tầng backend trước khi thử realtime/upload end-to-end.
 
 ---
 
