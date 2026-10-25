@@ -1,6 +1,7 @@
 # Hồ sơ Task Luồng B: 3D glTF Viewport & Raycast (Viewport Owner Stream)
 
-> **Dành cho AI Agent của Thành viên B (3D Viewport Owner):**
+> **Chủ sở hữu (Stream Owner):** **Hoàng Đức Huy (`@NilsNielsen` — 3D Viewport & Raycast)**
+> - **GitHub Issues:** `#11`–`#18` (`[B1]`–`[B8]`)
 > - **Write Scope (Được phép sửa):** `apps/web/src/viewport/**` (trừ việc thay đổi chữ ký của `bridge.ts`).
 > - **Read-Only Contracts:** `packages/shared/**`, `apps/web/src/viewport/bridge.ts`, `docs/contracts/DATA_AND_EVENTS.md`.
 > - **CẤM TUYỆT ĐỐI:** Không được import từ `apps/api/**` hoặc `apps/web/src/features/**`. Mọi giao tiếp với UI 2D và Store chỉ đi qua `ViewportBridge`.

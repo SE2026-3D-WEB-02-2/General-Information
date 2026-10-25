@@ -11,13 +11,13 @@ Spriter is a multi-user 3D glTF design review system built as an **`npm workspac
 
 ## 2. Role & Task Routing for the 3-Person Team
 When the user asks you to work on a task or feature, immediately read the corresponding stream file:
-1. **Stream A (Tech Lead — Backend, Realtime, DB, Infra, Tasks `A1–A10`):**
+1. **Stream A — Nekover2 (Tech Lead — Backend & Realtime, Tasks `A1–A10`):**
    - Read: `docs/tasks/STREAM_A_BACKEND.md` and `apps/api/AGENTS.md`
    - Write Scope: `apps/api/**`, `infra/**`, `scripts/**`, `.github/**`, `apps/web/src/app/**`
-2. **Stream B (3D Viewport & Raycast Owner, Tasks `B1–B8`):**
+2. **Stream B — Hoàng Đức Huy (`@NilsNielsen` — 3D Viewport & Raycast, Tasks `B1–B8`):**
    - Read: `docs/tasks/STREAM_B_3D_VIEWPORT.md` and `apps/web/src/viewport/AGENTS.md`
    - Write Scope: `apps/web/src/viewport/**` (do not change `bridge.ts` signature without team approval)
-3. **Stream C (2D Collaboration UI & Adapters Owner, Tasks `C1–C9`):**
+3. **Stream C — Hồ Trọng Hiếu (`@soshyz27` — 2D Collaboration UI & Adapters, Tasks `C1–C9`):**
    - Read: `docs/tasks/STREAM_C_COLLAB_UI.md` and `apps/web/src/features/AGENTS.md`
    - Write Scope: `apps/web/src/features/**`, `apps/web/src/adapters/**`
 4. **Shared Data & Event Contracts:**

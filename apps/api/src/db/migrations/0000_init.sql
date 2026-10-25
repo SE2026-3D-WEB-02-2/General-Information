@@ -19,6 +19,8 @@ CREATE TABLE IF NOT EXISTS models (
     storage_key TEXT NOT NULL,
     file_size BIGINT NOT NULL CHECK (file_size >= 0),
     file_hash VARCHAR(64) NOT NULL,
+    status VARCHAR(32) NOT NULL DEFAULT 'READY'
+        CHECK (status IN ('UPLOAD_PENDING', 'READY')),
     uploaded_by UUID NOT NULL REFERENCES users(id),
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );

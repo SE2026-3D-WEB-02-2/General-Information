@@ -1,23 +1,25 @@
 # ============================================================================
 # Spriter 3-Person Team CODEOWNERS
-# Replace @member-a-lead, @member-b-3d, @member-c-ui with actual GitHub handles
+# - Stream A (Tech Lead — Backend, Realtime & Infra): @Nekover2
+# - Stream B (3D Viewport & Raycast — Hoàng Đức Huy): @NilsNielsen
+# - Stream C (2D Collaboration UI & Adapters — Hồ Trọng Hiếu): @soshyz27
 # ============================================================================
 
 # Shared Domain Policy & Contracts require cross-team review
-/packages/shared/**                  @member-a-lead @member-b-3d @member-c-ui
-/apps/web/src/viewport/bridge.ts     @member-a-lead @member-b-3d @member-c-ui
-/docs/contracts/**                   @member-a-lead @member-b-3d @member-c-ui
+/packages/shared/**                  @Nekover2 @NilsNielsen @soshyz27
+/apps/web/src/viewport/bridge.ts     @Nekover2 @NilsNielsen @soshyz27
+/docs/contracts/**                   @Nekover2 @NilsNielsen @soshyz27
 
-# Stream A — Tech Lead / Backend, Realtime & Infrastructure
-/apps/api/**                         @member-a-lead
-/infra/**                            @member-a-lead
-/scripts/**                          @member-a-lead
-/.github/**                          @member-a-lead
-/apps/web/src/app/**                 @member-a-lead @member-c-ui
+# Stream A — Nekover2 (Tech Lead — Backend, Realtime & Infrastructure)
+/apps/api/**                         @Nekover2
+/infra/**                            @Nekover2
+/scripts/**                          @Nekover2
+/.github/**                          @Nekover2
+/apps/web/src/app/**                 @Nekover2 @soshyz27
 
-# Stream B — 3D glTF Viewport & Raycast
-/apps/web/src/viewport/**            @member-b-3d
+# Stream B — Hoàng Đức Huy (@NilsNielsen — 3D glTF Viewport & Raycast)
+/apps/web/src/viewport/**            @NilsNielsen
 
-# Stream C — Collaboration UI & Transport Adapters
-/apps/web/src/features/**            @member-c-ui
-/apps/web/src/adapters/**            @member-c-ui
+# Stream C — Hồ Trọng Hiếu (@soshyz27 — 2D Collaboration UI & Transport Adapters)
+/apps/web/src/features/**            @soshyz27
+/apps/web/src/adapters/**            @soshyz27

@@ -1,12 +1,20 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { type ServerRealtimeEvent } from '@spriter/shared';
-import { AnnotationService, OPERATIONAL_LOG_TTL_DAYS } from '../src/modules/annotations/domain/annotation.service.ts';
+import { MAX_API_JSON_BODY_BYTES, type ServerRealtimeEvent } from '@spriter/shared';
+import { SpriterApiApplication } from '../src/http/app-router.ts';
 import { InMemoryAnnotationRepository } from '../src/modules/annotations/adapters/in-memory.repository.ts';
+import {
+  PostgresAnnotationRepository,
+  type SqlExecutorPort,
+} from '../src/modules/annotations/adapters/postgres.repository.ts';
+import {
+  AnnotationService,
+  OPERATIONAL_LOG_TTL_DAYS,
+} from '../src/modules/annotations/domain/annotation.service.ts';
 import { AnnotationController } from '../src/modules/annotations/http/annotation.controller.ts';
 
-describe('@spriter/api — Hexagonal Domain, OCC Concurrency, Import & 7-Day Telemetry', () => {
-  it('1. Protects server-side spatial lock invariant when annotation is already RESOLVED', async () => {
+describe('@spriter/api — Milestone M1 & M2 Backend Suite ([A1]–[A6])', () => {
+  it('1. [A2/A4] Protects server-side spatial lock invariant when annotation is already RESOLVED', async () => {
     const service = new AnnotationService();
     const controller = new AnnotationController(service);
 
@@ -43,7 +51,7 @@ describe('@spriter/api — Hexagonal Domain, OCC Concurrency, Import & 7-Day Tel
     assert.equal((response.body as any).errorCode, 'SPATIAL_LOCKED_WHEN_RESOLVED');
   });
 
-  it('2. Prevents Lost Update when two users concurrently update the same annotation and strips internal DB fields', async () => {
+  it('2. [A2/A4] Prevents Lost Update when two users concurrently update the same annotation and strips internal DB fields', async () => {
     const publishedEvents: ServerRealtimeEvent[] = [];
     const repo = new InMemoryAnnotationRepository();
     const service = new AnnotationService(repo, undefined, {
@@ -101,7 +109,7 @@ describe('@spriter/api — Hexagonal Domain, OCC Concurrency, Import & 7-Day Tel
     assert.equal(publishedEvents[0]?.type, 'annotation:updated');
   });
 
-  it('3. Domain race simulation: 984 concurrent tasks achieve 0 Lost Updates and 7-day operational log TTL', async () => {
+  it('3. [A2/A8/A9] Domain race simulation: 984 concurrent tasks achieve 0 Lost Updates and 7-day operational log TTL', async () => {
     let fakeNow = new Date('2026-10-25T12:00:00.000Z');
     const repo = new InMemoryAnnotationRepository();
     const service = new AnnotationService(repo, { now: () => fakeNow });
@@ -157,7 +165,7 @@ describe('@spriter/api — Hexagonal Domain, OCC Concurrency, Import & 7-Day Tel
     assert.equal(service.getOperationalLogs().length, 0);
   });
 
-  it('4. Enforces Import fileHash check (409) and per-annotation validation rollback (422)', async () => {
+  it('4. [A6] Enforces Export JSON v1, Import fileHash check (409), and per-annotation validation rollback (422)', async () => {
     const service = new AnnotationService();
     const controller = new AnnotationController(service);
 
@@ -209,5 +217,306 @@ describe('@spriter/api — Hexagonal Domain, OCC Concurrency, Import & 7-Day Tel
     assert.equal((invalidItemRes.body as any).errorCode, 'IMPORT_VALIDATION_FAILED');
     assert.equal((invalidItemRes.body as any).itemErrors.length, 1);
     assert.equal((invalidItemRes.body as any).itemErrors[0].reasonCode, 'MISSING_RESOLUTION_COMMENT');
+
+    // Verify 0 annotations were persisted after failed import rollback
+    const exportAfterRollback = await controller.exportAnnotations({
+      params: { modelId: 'model-gltf-01' },
+    });
+    assert.equal(exportAfterRollback.statusCode, 200);
+    assert.equal((exportAfterRollback.body as any).annotations.length, 0);
+  });
+
+  it('5. [A3] Enforces JWT Authentication (401) and RBAC Permission Gate (403 FORBIDDEN_OPERATION on ARCHIVE/DELETE by non-author REVIEWER)', async () => {
+    const app = new SpriterApiApplication();
+
+    // 1. Missing token -> 401 UNAUTHORIZED
+    const unauthRes = await app.handleRequest({
+      method: 'GET',
+      path: '/api/v1/models/model-gltf-01/annotations',
+    });
+    assert.equal(unauthRes.statusCode, 401);
+    assert.equal((unauthRes.body as any).errorCode, 'UNAUTHORIZED');
+
+    // 2. Login as Reviewer Hieu (`hieu@spriter.local`) and Reviewer Huy (`huy@spriter.local`) and Lead (`lead@spriter.local`)
+    const hieuLogin = await app.handleRequest({
+      method: 'POST',
+      path: '/api/v1/auth/login',
+      body: { email: 'hieu@spriter.local', password: 'SpriterUI#2026' },
+    });
+    assert.equal(hieuLogin.statusCode, 200);
+    const hieuSession = hieuLogin.body as any;
+    assert.equal('password_hash' in hieuSession.user, false);
+    const hieuToken = `Bearer ${hieuSession.accessToken}`;
+
+    const huyLogin = await app.handleRequest({
+      method: 'POST',
+      path: '/api/v1/auth/login',
+      body: { email: 'huy@spriter.local', password: 'Spriter3D#2026' },
+    });
+    const huyToken = `Bearer ${(huyLogin.body as any).accessToken}`;
+
+    const leadLogin = await app.handleRequest({
+      method: 'POST',
+      path: '/api/v1/auth/login',
+      body: { email: 'lead@spriter.local', password: 'SpriterLead#2026' },
+    });
+    const leadToken = `Bearer ${(leadLogin.body as any).accessToken}`;
+
+    // 3. Hieu creates an annotation (v1) and resolves it (v2)
+    const createRes = await app.handleRequest({
+      method: 'POST',
+      path: '/api/v1/models/model-gltf-01/annotations',
+      headers: { authorization: hieuToken },
+      body: {
+        position: [1, 2, 3],
+        normal: [0, 1, 0],
+        cameraState: { position: [0, 2, 6], target: [1, 2, 3] },
+        meshName: 'RotorBlade_01',
+        initialComment: 'Clearance gap exceeds 2.5mm tolerance on rotor blade.',
+      },
+    });
+    assert.equal(createRes.statusCode, 201);
+    const createdAnn = createRes.body as any;
+
+    const resolveRes = await app.handleRequest({
+      method: 'PATCH',
+      path: `/api/v1/annotations/${createdAnn.id}`,
+      headers: { authorization: huyToken },
+      body: { expectedVersion: 1, status: 'RESOLVED' },
+    });
+    assert.equal(resolveRes.statusCode, 200);
+
+    // 4. Reviewer Huy (NOT the author) attempts to ARCHIVE or DELETE Hieu's annotation -> 403 FORBIDDEN_OPERATION
+    const forbiddenArchive = await app.handleRequest({
+      method: 'PATCH',
+      path: `/api/v1/annotations/${createdAnn.id}`,
+      headers: { authorization: huyToken },
+      body: { expectedVersion: 2, status: 'ARCHIVED' },
+    });
+    assert.equal(forbiddenArchive.statusCode, 403);
+    assert.equal((forbiddenArchive.body as any).errorCode, 'FORBIDDEN_OPERATION');
+
+    const forbiddenDelete = await app.handleRequest({
+      method: 'DELETE',
+      path: `/api/v1/annotations/${createdAnn.id}`,
+      headers: { authorization: huyToken },
+    });
+    assert.equal(forbiddenDelete.statusCode, 403);
+    assert.equal((forbiddenDelete.body as any).errorCode, 'FORBIDDEN_OPERATION');
+
+    // 5. Project Lead (`Nekover2`) CAN archive the annotation -> 200 OK (version 3, ARCHIVED)
+    const leadArchive = await app.handleRequest({
+      method: 'PATCH',
+      path: `/api/v1/annotations/${createdAnn.id}`,
+      headers: { authorization: leadToken },
+      body: { expectedVersion: 2, status: 'ARCHIVED' },
+    });
+    assert.equal(leadArchive.statusCode, 200);
+    assert.equal((leadArchive.body as any).status, 'ARCHIVED');
+    assert.equal((leadArchive.body as any).version, 3);
+  });
+
+  it('6. [A4] Supports Cursor Pagination, Status Filtering, Reconnect updatedAfter, and Comment Version Increment', async () => {
+    const app = new SpriterApiApplication();
+    const loginRes = await app.handleRequest({
+      method: 'POST',
+      path: '/api/v1/auth/login',
+      body: { email: 'lead@spriter.local', password: 'SpriterLead#2026' },
+    });
+    const token = `Bearer ${(loginRes.body as any).accessToken}`;
+
+    // Create 3 annotations
+    const ids: string[] = [];
+    for (let i = 1; i <= 3; i++) {
+      const res = await app.handleRequest({
+        method: 'POST',
+        path: '/api/v1/models/model-gltf-01/annotations',
+        headers: { authorization: token },
+        body: {
+          position: [i, 0, 0],
+          normal: [0, 0, 1],
+          cameraState: { position: [0, 0, 5], target: [i, 0, 0] },
+          initialComment: `Initial design review note #${i} with >= 10 chars`,
+        },
+      });
+      assert.equal(res.statusCode, 201);
+      ids.push((res.body as any).id);
+    }
+
+    // Add a comment to the first annotation -> increments version from 1 to 2
+    const commentRes = await app.handleRequest({
+      method: 'POST',
+      path: `/api/v1/annotations/${ids[0]}/comments`,
+      headers: { authorization: token },
+      body: { content: 'Follow-up thread reply confirming CAD fix.' },
+    });
+    assert.equal(commentRes.statusCode, 201);
+    assert.equal((commentRes.body as any).version, 2);
+    assert.equal((commentRes.body as any).comments.length, 2);
+
+    // Cursor pagination: page 1 (limit=2) -> page 2 (limit=2)
+    const page1 = await app.handleRequest({
+      method: 'GET',
+      path: '/api/v1/models/model-gltf-01/annotations',
+      headers: { authorization: token },
+      query: { limit: '2' },
+    });
+    assert.equal(page1.statusCode, 200);
+    const page1Body = page1.body as any;
+    assert.equal(page1Body.items.length, 2);
+    assert.equal(page1Body.totalCount, 3);
+    assert.ok(page1Body.nextCursor);
+
+    const page2 = await app.handleRequest({
+      method: 'GET',
+      path: '/api/v1/models/model-gltf-01/annotations',
+      headers: { authorization: token },
+      query: { limit: '2', cursor: page1Body.nextCursor },
+    });
+    const page2Body = page2.body as any;
+    assert.equal(page2Body.items.length, 1);
+    assert.equal(page2Body.nextCursor, null);
+  });
+
+  it('7. [A5] Generates Presigned S3/MinIO Upload/Download URLs and rejects >1MB or raw .glb binary on API (413)', async () => {
+    const app = new SpriterApiApplication();
+    const loginRes = await app.handleRequest({
+      method: 'POST',
+      path: '/api/v1/auth/login',
+      body: { email: 'lead@spriter.local', password: 'SpriterLead#2026' },
+    });
+    const token = `Bearer ${(loginRes.body as any).accessToken}`;
+
+    // 1. Reject direct binary .glb or > 1MB body with 413 PAYLOAD_TOO_LARGE
+    const directBinaryRes = await app.handleRequest({
+      method: 'POST',
+      path: '/api/v1/models/upload-url',
+      headers: {
+        authorization: token,
+        contentType: 'model/gltf-binary',
+        contentLength: MAX_API_JSON_BODY_BYTES + 500_000,
+      },
+      body: {},
+    });
+    assert.equal(directBinaryRes.statusCode, 413);
+    assert.equal((directBinaryRes.body as any).errorCode, 'PAYLOAD_TOO_LARGE');
+
+    // 2. Request Presigned PUT URL for a 120MB .glb file
+    const sha256 = 'a'.repeat(64);
+    const presignRes = await app.handleRequest({
+      method: 'POST',
+      path: '/api/v1/models/upload-url',
+      headers: { authorization: token, contentType: 'application/json', contentLength: 180 },
+      body: {
+        fileName: 'landing_gear_assembly.glb',
+        fileSize: 125_829_120,
+        fileHash: sha256,
+      },
+    });
+    assert.equal(presignRes.statusCode, 201);
+    const presigned = presignRes.body as any;
+    assert.ok(presigned.modelId);
+    assert.ok(presigned.uploadUrl.includes('X-Amz-Signature='));
+    assert.equal(presigned.maxApiJsonBodyBytes, MAX_API_JSON_BODY_BYTES);
+
+    // 3. Confirm upload -> Model transitions to READY & generates Presigned GET downloadUrl
+    const confirmRes = await app.handleRequest({
+      method: 'POST',
+      path: `/api/v1/models/${presigned.modelId}/confirm`,
+      headers: { authorization: token },
+      body: {
+        fileSize: 125_829_120,
+        fileHash: sha256,
+      },
+    });
+    assert.equal(confirmRes.statusCode, 200);
+    const confirmedModel = confirmRes.body as any;
+    assert.equal(confirmedModel.status, 'READY');
+    assert.ok(confirmedModel.downloadUrl.includes('X-Amz-Signature='));
+
+    // 4. Newly confirmed model is immediately available for Export/Import verification
+    const exportNewModel = await app.handleRequest({
+      method: 'GET',
+      path: `/api/v1/models/${presigned.modelId}/annotations/export`,
+      headers: { authorization: token },
+    });
+    assert.equal(exportNewModel.statusCode, 200);
+    assert.equal((exportNewModel.body as any).modelMeta.fileHash, sha256);
+  });
+
+  it('8. [A1/A2] PostgresAnnotationRepository executes atomic SQL Compare-And-Swap (WHERE id = $1 AND version = $2) inside a transaction', async () => {
+    const executedQueries: Array<{ sql: string; params: readonly unknown[] }> = [];
+    const fakeSqlDriver: SqlExecutorPort = {
+      async query(sql, params = []) {
+        executedQueries.push({ sql: sql.replace(/\s+/g, ' ').trim(), params });
+        if (sql.includes('UPDATE annotations')) {
+          const expectedVersion = params[1];
+          return { rows: [], rowCount: expectedVersion === 4 ? 1 : 0 };
+        }
+        return { rows: [], rowCount: 1 };
+      },
+      async transaction(fn) {
+        return fn(this);
+      },
+    };
+
+    const pgRepo = new PostgresAnnotationRepository(fakeSqlDriver);
+    const audit = {
+      eventId: 'evt-pg-1',
+      annotationId: 'ann-pg-1',
+      actorId: 'user-lead-nekover2',
+      outcome: 'UPDATED' as const,
+      expectedVersion: 4,
+      actualVersion: 5,
+      createdAt: '2026-10-25T06:00:00.000Z',
+      expiresAt: '2026-11-01T06:00:00.000Z',
+    };
+
+    const updated = await pgRepo.updateIfVersion(
+      'ann-pg-1',
+      4,
+      {
+        id: 'ann-pg-1',
+        model_id: 'model-gltf-01',
+        author_id: 'user-lead-nekover2',
+        status: 'RESOLVED',
+        version: 5,
+        position: [1, 2, 3],
+        normal: [0, 1, 0],
+        comments: [],
+        updated_at: '2026-10-25T06:00:00.000Z',
+      },
+      audit,
+    );
+
+    assert.equal(updated, true);
+    assert.equal(executedQueries.length, 2);
+    assert.ok(
+      executedQueries[0]!.sql.includes(
+        'UPDATE annotations SET status = $3, position = $4::jsonb, normal = $5::jsonb, camera_state = $6::jsonb, version = version + 1, updated_at = $7 WHERE id = $1 AND version = $2',
+      ),
+    );
+    assert.ok(executedQueries[1]!.sql.includes('INSERT INTO operational_audit_logs'));
+
+    // Stale expectedVersion (3 !== 4) -> returns false and does NOT insert operational audit log inside updateIfVersion
+    executedQueries.length = 0;
+    const staleResult = await pgRepo.updateIfVersion(
+      'ann-pg-1',
+      3,
+      {
+        id: 'ann-pg-1',
+        model_id: 'model-gltf-01',
+        author_id: 'user-lead-nekover2',
+        status: 'RESOLVED',
+        version: 4,
+        position: [1, 2, 3],
+        normal: [0, 1, 0],
+        comments: [],
+        updated_at: '2026-10-25T06:00:00.000Z',
+      },
+      audit,
+    );
+    assert.equal(staleResult, false);
+    assert.equal(executedQueries.length, 1);
   });
 });

@@ -1,4 +1,4 @@
 Read `/AGENTS.md` and `/docs/contracts/DATA_AND_EVENTS.md` before making any edits.
-Identify your stream (`A`: Backend in `docs/tasks/STREAM_A_BACKEND.md`, `B`: 3D Viewport in `docs/tasks/STREAM_B_3D_VIEWPORT.md`, `C`: UI in `docs/tasks/STREAM_C_COLLAB_UI.md`).
+Identify your stream (`A`: **Nekover2 (Tech Lead — Backend & Realtime)** in `docs/tasks/STREAM_A_BACKEND.md`, `B`: **Hoàng Đức Huy (`@NilsNielsen` — 3D Viewport & Raycast)** in `docs/tasks/STREAM_B_3D_VIEWPORT.md`, `C`: **Hồ Trọng Hiếu (`@soshyz27` — 2D Collaboration UI & Adapters)** in `docs/tasks/STREAM_C_COLLAB_UI.md`).
 Never duplicate business rules outside `@spriter/shared`.
 Always run `npm run verify` to validate architecture boundaries and unit tests before completing your turn.

@@ -36,10 +36,16 @@ const MILESTONES = [
   },
 ];
 
+const STREAM_ASSIGNEES = {
+  A: ['Nekover2'],
+  B: ['NilsNielsen'],
+  C: ['soshyz27'],
+};
+
 const LABELS = [
-  { name: 'stream:A-backend', color: '1d76db', description: 'Stream A — Tech Lead / Backend, Realtime & Infra' },
-  { name: 'stream:B-viewport', color: '0e8a16', description: 'Stream B — 3D glTF Viewport & Raycast' },
-  { name: 'stream:C-collab-ui', color: 'd93f0b', description: 'Stream C — 2D Collaboration UI, Store & Adapters' },
+  { name: 'stream:A-backend', color: '1d76db', description: 'Stream A — Nekover2 (Tech Lead / Backend, Realtime & Infra)' },
+  { name: 'stream:B-viewport', color: '0e8a16', description: 'Stream B — Hoàng Đức Huy (@NilsNielsen — 3D glTF Viewport & Raycast)' },
+  { name: 'stream:C-collab-ui', color: 'd93f0b', description: 'Stream C — Hồ Trọng Hiếu (@soshyz27 — 2D Collaboration UI, Store & Adapters)' },
   { name: 'boundary:occ-invariant', color: '5319e7', description: 'Optimistic Concurrency Control & Domain Invariants' },
 ];
 
@@ -530,6 +536,14 @@ async function ghRequest(endpoint, method = 'GET', body = undefined) {
   return res.status === 204 ? null : res.json();
 }
 
+function getIssueAssignees(issue) {
+  if (Array.isArray(issue.assignees) && issue.assignees.length > 0) {
+    return issue.assignees;
+  }
+  const streamKey = issue.id[0];
+  return STREAM_ASSIGNEES[streamKey] || [];
+}
+
 async function main() {
   if (isDryRun || !token || !repo) {
     console.log('================================================================================');
@@ -539,7 +553,8 @@ async function main() {
       const mIssues = ISSUES.filter((i) => i.milestone === m.key);
       console.log(`\n🎯 ${m.title} (${mIssues.length} issues)`);
       for (const issue of mIssues) {
-        console.log(`   - ${issue.title} [${issue.labels.join(', ')}]`);
+        const assignees = getIssueAssignees(issue);
+        console.log(`   - ${issue.title} [${issue.labels.join(', ')}] -> @${assignees.join(', @')}`);
       }
     }
     if (!isDryRun && (!token || !repo)) {
@@ -552,7 +567,23 @@ async function main() {
     return;
   }
 
-  console.log(`🚀 Syncing Milestones, Labels, and Issues to GitHub repository: ${repo}...`);
+  console.log(`🚀 Syncing Milestones, Labels, Collaborators, and Issues to GitHub repository: ${repo}...`);
+
+  // 0. Ensure Stream Owners are valid repository assignees / collaborators
+  const existingAssignees = await ghRequest('/assignees?per_page=100');
+  const validAssigneeLogins = new Set(existingAssignees.map((a) => a.login.toLowerCase()));
+  for (const username of ['Nekover2', 'NilsNielsen', 'soshyz27']) {
+    if (!validAssigneeLogins.has(username.toLowerCase())) {
+      try {
+        await ghRequest(`/collaborators/${username}`, 'PUT', { permission: 'write' });
+        console.log(`  ✔ Added/invited collaborator with write access: @${username}`);
+      } catch (err) {
+        console.warn(`  ⚠ Could not add collaborator @${username}: ${err.message}`);
+      }
+    } else {
+      console.log(`  • Verified valid assignee: @${username}`);
+    }
+  }
 
   // 1. Sync Labels
   const existingLabels = await ghRequest('/labels?per_page=100');
@@ -582,13 +613,31 @@ async function main() {
     }
   }
 
-  // 3. Sync 27 Task Issues (Idempotent by [A1] / [B1] / [C1] prefix)
+  // 3. Sync 27 Task Issues (Idempotent by [A1] / [B1] / [C1] prefix + Assignee verification)
   const existingIssues = await ghRequest('/issues?state=all&per_page=100');
   for (const issue of ISSUES) {
     const prefix = `[${issue.id}]`;
+    const desiredAssignees = getIssueAssignees(issue);
     const alreadyExists = existingIssues.find((ei) => ei.title.startsWith(prefix));
     if (alreadyExists) {
-      console.log(`  • Skipping existing issue: ${alreadyExists.title} (#${alreadyExists.number})`);
+      const currentAssignees = (alreadyExists.assignees || []).map((a) => a.login.toLowerCase());
+      const needsAssigneeUpdate =
+        desiredAssignees.length !== currentAssignees.length ||
+        desiredAssignees.some((da) => !currentAssignees.includes(da.toLowerCase()));
+      if (needsAssigneeUpdate) {
+        const updated = await ghRequest(`/issues/${alreadyExists.number}`, 'PATCH', {
+          assignees: desiredAssignees,
+        });
+        const finalLogins = (updated.assignees || []).map((a) => `@${a.login}`).join(', ');
+        console.log(
+          `  ✔ Updated assignees on issue #${alreadyExists.number} (${alreadyExists.title}) -> ${finalLogins}`,
+        );
+      } else {
+        const currentLogins = (alreadyExists.assignees || []).map((a) => `@${a.login}`).join(', ');
+        console.log(
+          `  • Verified existing issue #${alreadyExists.number}: ${alreadyExists.title} (assigned: ${currentLogins})`,
+        );
+      }
       continue;
     }
     const created = await ghRequest('/issues', 'POST', {
@@ -596,11 +645,13 @@ async function main() {
       body: issue.body,
       labels: issue.labels,
       milestone: milestoneNumberByKey.get(issue.milestone),
+      assignees: desiredAssignees,
     });
-    console.log(`  ✔ Created issue #${created.number}: ${created.title}`);
+    const createdLogins = (created.assignees || []).map((a) => `@${a.login}`).join(', ');
+    console.log(`  ✔ Created issue #${created.number}: ${created.title} (assigned: ${createdLogins})`);
   }
 
-  console.log('✅ GitHub Milestones, Labels, and all 27 Issues are synced!');
+  console.log('✅ GitHub Milestones, Labels, and all 27 Issues (with Assignees) are synced!');
 }
 
 main().catch((err) => {

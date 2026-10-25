@@ -69,6 +69,7 @@ export interface AnnotationRepositoryPort {
     updatedRow: InternalDbAnnotationRecord,
     audit: OperationalAuditLogEntry,
   ): Promise<boolean>;
+  deleteById(id: string, audit: OperationalAuditLogEntry): Promise<boolean>;
   bulkReplaceOrInsert(
     modelId: string,
     records: InternalDbAnnotationRecord[],

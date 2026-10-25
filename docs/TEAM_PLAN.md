@@ -3,20 +3,20 @@
 > Tài liệu này quy định phân vùng sở hữu code, danh sách 27 Tasks chia theo 4 Milestones (`M1–M4`) và các Cổng Xác minh (`G0–G4`) cho đội ngũ 3 người (cùng AI Agent của từng người).
 > - Hợp đồng dữ liệu & sự kiện chi tiết: Xem [DATA_AND_EVENTS.md](file:///Users/nekover2/Developments/Spriter/docs/contracts/DATA_AND_EVENTS.md).
 > - Hồ sơ chi tiết từng luồng cho AI Agent:
->   - **Luồng A (Tech Lead / Backend & Realtime):** [STREAM_A_BACKEND.md](file:///Users/nekover2/Developments/Spriter/docs/tasks/STREAM_A_BACKEND.md)
->   - **Luồng B (3D Viewport & Raycast):** [STREAM_B_3D_VIEWPORT.md](file:///Users/nekover2/Developments/Spriter/docs/tasks/STREAM_B_3D_VIEWPORT.md)
->   - **Luồng C (Collaboration UI & Store):** [STREAM_C_COLLAB_UI.md](file:///Users/nekover2/Developments/Spriter/docs/tasks/STREAM_C_COLLAB_UI.md)
+>   - **Luồng A — Nekover2 (Tech Lead — Backend & Realtime):** [STREAM_A_BACKEND.md](file:///Users/nekover2/Developments/Spriter/docs/tasks/STREAM_A_BACKEND.md)
+>   - **Luồng B — Hoàng Đức Huy (`@NilsNielsen` — 3D Viewport & Raycast):** [STREAM_B_3D_VIEWPORT.md](file:///Users/nekover2/Developments/Spriter/docs/tasks/STREAM_B_3D_VIEWPORT.md)
+>   - **Luồng C — Hồ Trọng Hiếu (`@soshyz27` — 2D Collaboration UI & Adapters):** [STREAM_C_COLLAB_UI.md](file:///Users/nekover2/Developments/Spriter/docs/tasks/STREAM_C_COLLAB_UI.md)
 
 ---
 
 ## 1. Phân vùng Sở hữu Code (CODEOWNERS & Agent Scope)
 
-| Mã Luồng | Vai trò | Vùng được phép sửa (Write Scope) | Vùng CẤM tự ý sửa (Read-Only) | Hồ sơ Task cho Agent |
+| Mã Luồng | Thành viên & Vai trò | Vùng được phép sửa (Write Scope) | Vùng CẤM tự ý sửa (Read-Only) | Hồ sơ Task cho Agent |
 | :--- | :--- | :--- | :--- | :--- |
-| **Stream A** | **Tech Lead — Backend, Realtime, Hạ tầng** | `apps/api/**`, `infra/**`, `scripts/**`, `.github/**`, `apps/web/src/app/**` | `apps/web/src/viewport/**`, `apps/web/src/features/**` | `docs/tasks/STREAM_A_BACKEND.md` |
-| **Stream B** | **3D Viewport Owner** | `apps/web/src/viewport/**` (trừ chữ ký `bridge.ts`) | `apps/api/**`, `apps/web/src/features/**`, `packages/shared/**` | `docs/tasks/STREAM_B_3D_VIEWPORT.md` |
-| **Stream C** | **Collaboration UI & State Owner** | `apps/web/src/features/**`, `apps/web/src/adapters/**` | `apps/api/**`, `apps/web/src/viewport/**`, `packages/shared/**` | `docs/tasks/STREAM_C_COLLAB_UI.md` |
-| **Shared** | **Hợp đồng dùng chung** | `packages/shared/**`, `apps/web/src/viewport/bridge.ts` | Bắt buộc **≥ 2 thành viên duyệt** + tăng `CONTRACT_VERSION` | `docs/contracts/DATA_AND_EVENTS.md` |
+| **Stream A** | **Nekover2 (Tech Lead — Backend & Realtime)** | `apps/api/**`, `infra/**`, `scripts/**`, `.github/**`, `apps/web/src/app/**` | `apps/web/src/viewport/**`, `apps/web/src/features/**` | `docs/tasks/STREAM_A_BACKEND.md` |
+| **Stream B** | **Hoàng Đức Huy (`@NilsNielsen` — 3D Viewport & Raycast)** | `apps/web/src/viewport/**` (trừ chữ ký `bridge.ts`) | `apps/api/**`, `apps/web/src/features/**`, `packages/shared/**` | `docs/tasks/STREAM_B_3D_VIEWPORT.md` |
+| **Stream C** | **Hồ Trọng Hiếu (`@soshyz27` — 2D Collaboration UI & Adapters)** | `apps/web/src/features/**`, `apps/web/src/adapters/**` | `apps/api/**`, `apps/web/src/viewport/**`, `packages/shared/**` | `docs/tasks/STREAM_C_COLLAB_UI.md` |
+| **Shared** | **Hợp đồng dùng chung (`@Nekover2 @NilsNielsen @soshyz27`)** | `packages/shared/**`, `apps/web/src/viewport/bridge.ts` | Bắt buộc **≥ 2 thành viên duyệt** + tăng `CONTRACT_VERSION` | `docs/contracts/DATA_AND_EVENTS.md` |
 
 ---
 

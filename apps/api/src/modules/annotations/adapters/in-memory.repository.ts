@@ -89,6 +89,15 @@ export class InMemoryAnnotationRepository implements AnnotationRepositoryPort {
     return true;
   }
 
+  public async deleteById(id: string, audit: OperationalAuditLogEntry): Promise<boolean> {
+    if (!this.dbStore.has(id)) {
+      return false;
+    }
+    this.dbStore.delete(id);
+    this.operationalLogs.push(audit);
+    return true;
+  }
+
   public async bulkReplaceOrInsert(
     _modelId: string,
     records: InternalDbAnnotationRecord[],

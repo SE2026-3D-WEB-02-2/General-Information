@@ -1,6 +1,7 @@
 # Hồ sơ Task Luồng A: Backend, Realtime & Hạ tầng (Tech Lead Stream)
 
-> **Dành cho AI Agent của Thành viên A (Tech Lead / Backend Owner):**
+> **Chủ sở hữu (Stream Owner):** **Nekover2 (Tech Lead — Backend & Realtime)** (`@Nekover2`)
+> - **GitHub Issues:** `#1`–`#10` (`[A1]`–`[A10]`)
 > - **Write Scope (Được phép sửa):** `apps/api/**`, `infra/**`, `scripts/**`, `.github/**`, `apps/web/src/app/**`.
 > - **Read-Only Contracts:** `packages/shared/**` (Chỉ sửa khi cập nhật contract chung cho cả nhóm).
 > - **Lệnh kiểm chứng bắt buộc sau mỗi Task:** `npm run test:api && npm run verify`.

@@ -5,6 +5,7 @@ import {
   type CreateCommentRequestDto,
   type ImportAnnotationsRequestDto,
   type ListAnnotationsQueryDto,
+  type UserRole,
   type Vec3,
 } from '@spriter/shared';
 import { AnnotationService } from '../domain/annotation.service.ts';
@@ -72,6 +73,7 @@ export class AnnotationController {
   public async patchAnnotation(req: {
     params: { id: string };
     actorId: string;
+    actorRole?: UserRole;
     body: {
       expectedVersion: number;
       status?: AnnotationStatus;
@@ -94,6 +96,7 @@ export class AnnotationController {
       req.params.id,
       req.actorId,
       req.body,
+      req.actorRole ?? 'REVIEWER',
     );
 
     switch (result.status) {
@@ -101,6 +104,11 @@ export class AnnotationController {
         return {
           statusCode: 404 as const,
           body: { errorCode: 'ANNOTATION_NOT_FOUND', message: 'Annotation not found' },
+        };
+      case 'FORBIDDEN':
+        return {
+          statusCode: 403 as const,
+          body: { errorCode: 'FORBIDDEN_OPERATION', message: result.message },
         };
       case 'CONCURRENCY_CONFLICT':
         return {
@@ -126,6 +134,50 @@ export class AnnotationController {
           body: result.snapshot,
         };
     }
+  }
+
+  public async deleteAnnotation(req: {
+    params: { id: string };
+    actorId: string;
+    actorRole?: UserRole;
+  }) {
+    const result = await this.annotationService.deleteAnnotation(
+      req.params.id,
+      req.actorId,
+      req.actorRole ?? 'REVIEWER',
+    );
+
+    switch (result.status) {
+      case 'NOT_FOUND':
+        return {
+          statusCode: 404 as const,
+          body: { errorCode: 'ANNOTATION_NOT_FOUND', message: 'Annotation not found' },
+        };
+      case 'FORBIDDEN':
+        return {
+          statusCode: 403 as const,
+          body: { errorCode: 'FORBIDDEN_OPERATION', message: result.message },
+        };
+      case 'OK':
+        return {
+          statusCode: 200 as const,
+          body: { deletedId: result.deletedId },
+        };
+    }
+  }
+
+  public async exportAnnotations(req: { params: { modelId: string } }) {
+    const result = await this.annotationService.exportModelAnnotations(req.params.modelId);
+    if (result.status === 'MODEL_NOT_FOUND') {
+      return {
+        statusCode: 404 as const,
+        body: { errorCode: 'MODEL_NOT_FOUND', message: 'Target 3D model not found' },
+      };
+    }
+    return {
+      statusCode: 200 as const,
+      body: result.data,
+    };
   }
 
   public async importAnnotations(req: {

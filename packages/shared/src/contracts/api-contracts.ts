@@ -29,6 +29,14 @@ export interface LoginRequestDto {
   password: string;
 }
 
+export interface RegisterRequestDto {
+  email: string;
+  password: string;
+  name: string;
+  role?: UserRole;
+  avatarUrl?: string;
+}
+
 export interface AuthSessionResponseDto {
   user: UserSummary;
   accessToken: string;
@@ -52,7 +60,51 @@ export function canActorModifyAnnotation(
 }
 
 // ============================================================================
-// 2. REST API REQUEST / RESPONSE CONTRACTS (CRUD & PAGINATION)
+// 2. 3D MODEL METADATA & PRESIGNED UPLOAD CONTRACTS (STREAM A5 / B5 / C6)
+// ============================================================================
+
+/**
+ * Maximum JSON payload size accepted directly by API Server (1MB).
+ * Binary .glb files MUST be uploaded directly to S3/MinIO via Presigned URL.
+ */
+export const MAX_API_JSON_BODY_BYTES = 1_048_576;
+
+export type ModelUploadStatus = 'UPLOAD_PENDING' | 'READY';
+
+export interface ModelSummaryDto {
+  id: string;
+  name: string;
+  storageKey: string;
+  fileSize: number;
+  fileHash: string;
+  status: ModelUploadStatus;
+  uploadedBy: string;
+  downloadUrl?: string;
+  createdAt: string;
+}
+
+export interface RequestModelUploadUrlDto {
+  fileName: string;
+  fileSize: number;
+  fileHash: string;
+  contentType?: string;
+}
+
+export interface PresignedUploadResponseDto {
+  modelId: string;
+  uploadUrl: string;
+  storageKey: string;
+  expiresInSeconds: number;
+  maxApiJsonBodyBytes: number;
+}
+
+export interface ConfirmModelUploadDto {
+  fileSize: number;
+  fileHash: string;
+}
+
+// ============================================================================
+// 3. REST API REQUEST / RESPONSE CONTRACTS (CRUD & PAGINATION)
 // ============================================================================
 
 export interface ListAnnotationsQueryDto {
@@ -104,8 +156,11 @@ export type ApiErrorCode =
   | 'VALIDATION_FAILED'
   | 'UNAUTHORIZED'
   | 'FORBIDDEN_OPERATION'
+  | 'EMAIL_ALREADY_EXISTS'
+  | 'PAYLOAD_TOO_LARGE'
   | 'ANNOTATION_NOT_FOUND'
   | 'MODEL_NOT_FOUND'
+  | 'MODEL_UPLOAD_NOT_READY'
   | 'CONCURRENCY_CONFLICT'
   | 'IMPORT_MODEL_HASH_MISMATCH'
   | 'IMPORT_VALIDATION_FAILED';

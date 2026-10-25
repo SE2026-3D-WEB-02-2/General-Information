@@ -1,6 +1,7 @@
 # Hồ sơ Task Luồng C: Collaboration UI, Store & Adapters (UI Owner Stream)
 
-> **Dành cho AI Agent của Thành viên C (Collaboration UI & State Owner):**
+> **Chủ sở hữu (Stream Owner):** **Hồ Trọng Hiếu (`@soshyz27` — 2D Collaboration UI & Adapters)**
+> - **GitHub Issues:** `#19`–`#27` (`[C1]`–`[C9]`)
 > - **Write Scope (Được phép sửa):** `apps/web/src/features/**`, `apps/web/src/adapters/**` (và phối hợp với Tech Lead trên `apps/web/src/app/annotation-store.ts`).
 > - **Read-Only Contracts:** `packages/shared/**`, `apps/web/src/viewport/bridge.ts`, `docs/contracts/DATA_AND_EVENTS.md`.
 > - **CẤM TUYỆT ĐỐI:**

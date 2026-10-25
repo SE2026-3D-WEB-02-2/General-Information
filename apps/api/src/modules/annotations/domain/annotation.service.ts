@@ -9,7 +9,9 @@ import {
   type ImportItemError,
   type ListAnnotationsQueryDto,
   type PaginatedAnnotationsResponseDto,
+  type UserRole,
   type Vec3,
+  canActorModifyAnnotation,
   evaluateAnnotationMutation,
   validateExportPayload,
   validateSurfacePick,
@@ -29,12 +31,18 @@ export { OPERATIONAL_LOG_TTL_DAYS, type InternalDbAnnotationRecord, type Operati
 export type UpdateAnnotationOutcome =
   | { status: 'OK'; snapshot: AnnotationDomainSnapshot }
   | { status: 'NOT_FOUND' }
+  | { status: 'FORBIDDEN'; message: string }
   | { status: 'INVARIANT_VIOLATED'; reasonCode: string; message: string }
   | {
       status: 'CONCURRENCY_CONFLICT';
       currentVersion: number;
       serverSnapshot: AnnotationDomainSnapshot;
     };
+
+export type DeleteAnnotationOutcome =
+  | { status: 'OK'; deletedId: string }
+  | { status: 'NOT_FOUND' }
+  | { status: 'FORBIDDEN'; message: string };
 
 export type ImportAnnotationsOutcome =
   | { status: 'OK'; importedCount: number; annotations: AnnotationDomainSnapshot[] }
@@ -286,10 +294,26 @@ export class AnnotationService {
       normal?: Vec3;
       cameraState?: CameraState;
     },
+    actorRole: UserRole = 'REVIEWER',
   ): Promise<UpdateAnnotationOutcome> {
     const current = await this.repo.findById(id);
     if (!current) {
       return { status: 'NOT_FOUND' };
+    }
+
+    // 0. RBAC Permission Gate (from @spriter/shared)
+    if (command.status === 'ARCHIVED') {
+      const canArchive = canActorModifyAnnotation(
+        { id: actorId, role: actorRole },
+        { authorId: current.author_id },
+        'ARCHIVE',
+      );
+      if (!canArchive) {
+        return {
+          status: 'FORBIDDEN',
+          message: 'Only the annotation author or a PROJECT_LEAD can archive an annotation.',
+        };
+      }
     }
 
     // 1. Optimistic Concurrency Pre-Check
@@ -393,6 +417,52 @@ export class AnnotationService {
       status: 'OK',
       snapshot,
     };
+  }
+
+  public async deleteAnnotation(
+    id: string,
+    actorId: string,
+    actorRole: UserRole = 'REVIEWER',
+  ): Promise<DeleteAnnotationOutcome> {
+    const current = await this.repo.findById(id);
+    if (!current) {
+      return { status: 'NOT_FOUND' };
+    }
+
+    const canDelete = canActorModifyAnnotation(
+      { id: actorId, role: actorRole },
+      { authorId: current.author_id },
+      'DELETE',
+    );
+    if (!canDelete) {
+      return {
+        status: 'FORBIDDEN',
+        message: 'Only the annotation author or a PROJECT_LEAD can delete an annotation.',
+      };
+    }
+
+    const nowIso = this.clock.now().toISOString();
+    const deleteAudit = this.buildOperationalLog(
+      id,
+      actorId,
+      'UPDATED',
+      current.version,
+      current.version + 1,
+    );
+    const deleted = await this.repo.deleteById(id, deleteAudit);
+    if (!deleted) {
+      return { status: 'NOT_FOUND' };
+    }
+
+    this.realtime.publishToModelRoom(current.model_id, {
+      type: 'annotation:deleted',
+      eventId: deleteAudit.eventId,
+      modelId: current.model_id,
+      emittedAt: nowIso,
+      annotationId: id,
+    });
+
+    return { status: 'OK', deletedId: id };
   }
 
   public async exportModelAnnotations(
