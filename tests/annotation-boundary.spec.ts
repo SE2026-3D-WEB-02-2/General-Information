@@ -1,12 +1,12 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
+import { evaluateAnnotationMutation as sharedEvaluate } from '@spriter/shared';
 import {
   AnnotationService,
   OPERATIONAL_LOG_TTL_DAYS,
 } from '../apps/api/src/annotations/annotation.service.ts';
 import { AnnotationController } from '../apps/api/src/annotations/annotation.controller.ts';
 import { AnnotationThreadPanelController } from '../apps/web/src/features/annotations/AnnotationThreadController.ts';
-import { evaluateAnnotationMutation as sharedEvaluate } from '../packages/shared/src/domain/annotation-policy.ts';
 
 describe('Annotation Domain Policy & Concurrency Boundary Verification', () => {
   it('1. Enforces identical business rules across UI and API via shared pure policy', () => {
@@ -61,7 +61,6 @@ describe('Annotation Domain Policy & Concurrency Boundary Verification', () => {
       updated_at: '2026-10-18T14:05:00.000Z',
     });
 
-    // Attempt to move 3D pin coordinates while status is RESOLVED
     const response = await controller.patchAnnotation({
       params: { id: 'ann-101' },
       actorId: 'user-b',
@@ -99,7 +98,6 @@ describe('Annotation Domain Policy & Concurrency Boundary Verification', () => {
       updated_at: '2026-10-18T14:01:00.000Z',
     });
 
-    // User A and User B both read version 2 and submit concurrent updates
     const [resA, resB] = await Promise.all([
       controller.patchAnnotation({
         params: { id: 'ann-race-1' },
@@ -116,7 +114,6 @@ describe('Annotation Domain Policy & Concurrency Boundary Verification', () => {
     assert.equal(resA.statusCode, 200);
     assert.equal((resA.body as any).version, 3);
     assert.equal((resA.body as any).status, 'RESOLVED');
-    // Information hiding verified: internal token must never be exposed
     assert.equal('internal_storage_bucket_token' in (resA.body as any), false);
 
     assert.equal(resB.statusCode, 409);
@@ -125,7 +122,7 @@ describe('Annotation Domain Policy & Concurrency Boundary Verification', () => {
     assert.equal((resB.body as any).serverSnapshot.status, 'RESOLVED');
   });
 
-  it('4. Sustains 984 concurrent tasks with p95 <= 2.5s (2500ms), 0 Lost Updates, and 7-day operational log TTL', async () => {
+  it('4. Domain race simulation: 984 concurrent tasks achieve 0 Lost Updates and 7-day operational log TTL', async () => {
     const service = new AnnotationService();
     const controller = new AnnotationController(service);
 
@@ -171,22 +168,17 @@ describe('Annotation Domain Policy & Concurrency Boundary Verification', () => {
     const succeeded = outcomes.filter((o) => o.statusCode === 200);
     const conflicted = outcomes.filter((o) => o.statusCode === 409);
 
-    // Exactly 1 winner for expectedVersion=1, and 983 deterministic 409 conflicts (0 Lost Updates)
     assert.equal(succeeded.length, 1);
     assert.equal(conflicted.length, CONCURRENT_TASKS - 1);
 
     latenciesMs.sort((a, b) => a - b);
     const p95Index = Math.floor(CONCURRENT_TASKS * 0.95);
-    const p95LatencyMs = latenciesMs[p95Index];
-    assert.ok(
-      p95LatencyMs <= 2500,
-      `Expected p95 latency <= 2500ms, got ${p95LatencyMs.toFixed(3)}ms`,
-    );
+    const p95LatencyMs = latenciesMs[p95Index]!;
+    assert.ok(p95LatencyMs <= 2500);
 
-    // Verify 7-day operational log retention policy on all 984 recorded events
     const logs = service.getOperationalLogs();
     assert.equal(logs.length, CONCURRENT_TASKS);
-    const firstLog = logs[0];
+    const firstLog = logs[0]!;
     const ttlDays =
       (Date.parse(firstLog.expiresAt) - Date.parse(firstLog.createdAt)) / (1000 * 60 * 60 * 24);
     assert.equal(Math.round(ttlDays), OPERATIONAL_LOG_TTL_DAYS);
@@ -202,6 +194,10 @@ describe('Annotation Domain Policy & Concurrency Boundary Verification', () => {
       version: 4,
       position: [0, 0, 0] as [number, number, number],
       normal: [0, 1, 0] as [number, number, number],
+      cameraState: {
+        position: [2, 2, 2] as [number, number, number],
+        target: [0, 0, 0] as [number, number, number],
+      },
       comments: [
         {
           id: 'c-1',
@@ -240,12 +236,10 @@ describe('Annotation Domain Policy & Concurrency Boundary Verification', () => {
       fakeRealtimePort,
     );
 
-    // Out-of-order stale WebSocket event (v3 < v4) must be ignored
     wsCallback!({ ...initialSnapshot, status: 'OPEN', version: 3 });
     assert.equal(uiController.getSnapshot().version, 4);
     assert.equal(uiController.getSnapshot().status, 'IN_PROGRESS');
 
-    // Concurrent conflict (v5 on server) surfaces conflictSnapshot without crashing or losing local context
     await assert.rejects(() => uiController.updateStatus('RESOLVED'), /CONCURRENCY_CONFLICT:v5/);
     assert.equal(uiController.getConflictState()?.version, 5);
     assert.equal(uiController.getConflictState()?.status, 'RESOLVED');

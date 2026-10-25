@@ -1,0 +1,27 @@
+name: Bootstrap GitHub Milestones & 27 Task Issues
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  provision-milestones-and-issues:
+    name: Sync Milestones (M1-M4), Labels & 27 Issues (A1-A10, B1-B8, C1-C9)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 24+
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Provision Milestones, Labels & Issues via GitHub API
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: node scripts/github-sync-issues.mjs

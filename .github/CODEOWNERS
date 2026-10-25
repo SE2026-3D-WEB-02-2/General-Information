@@ -1,0 +1,23 @@
+# ============================================================================
+# Spriter 3-Person Team CODEOWNERS
+# Replace @member-a-lead, @member-b-3d, @member-c-ui with actual GitHub handles
+# ============================================================================
+
+# Shared Domain Policy & Contracts require cross-team review
+/packages/shared/**                  @member-a-lead @member-b-3d @member-c-ui
+/apps/web/src/viewport/bridge.ts     @member-a-lead @member-b-3d @member-c-ui
+/docs/contracts/**                   @member-a-lead @member-b-3d @member-c-ui
+
+# Stream A — Tech Lead / Backend, Realtime & Infrastructure
+/apps/api/**                         @member-a-lead
+/infra/**                            @member-a-lead
+/scripts/**                          @member-a-lead
+/.github/**                          @member-a-lead
+/apps/web/src/app/**                 @member-a-lead @member-c-ui
+
+# Stream B — 3D glTF Viewport & Raycast
+/apps/web/src/viewport/**            @member-b-3d
+
+# Stream C — Collaboration UI & Transport Adapters
+/apps/web/src/features/**            @member-c-ui
+/apps/web/src/adapters/**            @member-c-ui

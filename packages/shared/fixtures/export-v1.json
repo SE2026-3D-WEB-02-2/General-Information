@@ -1,0 +1,43 @@
+{
+  "schemaVersion": "1.0",
+  "exportedAt": "2026-10-25T05:00:00.000Z",
+  "modelMeta": {
+    "name": "turbine_housing_v1.glb",
+    "fileHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "annotations": [
+    {
+      "id": "550e8400-e29b-41d4-a716-446655440000",
+      "modelId": "model-gltf-01",
+      "authorId": "user-lead-01",
+      "authorName": "Tran Tech Lead",
+      "status": "RESOLVED",
+      "version": 3,
+      "position": [1.245, 0.892, -0.431],
+      "normal": [0.0, 1.0, 0.0],
+      "cameraState": {
+        "position": [3.5, 2.1, 4.0],
+        "target": [1.2, 0.8, -0.4]
+      },
+      "meshName": "Front_Housing_Flange",
+      "comments": [
+        {
+          "id": "660e8400-e29b-41d4-a716-446655440111",
+          "authorId": "user-lead-01",
+          "authorName": "Tran Tech Lead",
+          "content": "Adjusted flange clearance by 2.5mm according to CAD revision.",
+          "createdAt": "2026-10-25T04:30:00.000Z"
+        },
+        {
+          "id": "660e8400-e29b-41d4-a716-446655440222",
+          "authorId": "user-rev-02",
+          "authorName": "Le Reviewer",
+          "content": "OK!",
+          "createdAt": "2026-10-25T04:45:00.000Z"
+        }
+      ],
+      "createdAt": "2026-10-25T04:00:00.000Z",
+      "updatedAt": "2026-10-25T04:50:00.000Z"
+    }
+  ]
+}

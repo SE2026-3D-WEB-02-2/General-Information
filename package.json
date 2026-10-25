@@ -3,8 +3,19 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Multi-user 3D glTF Annotation & Design Review System",
+  "description": "Multi-user 3D glTF Annotation & Design Review System (Modular Monolith + OCC)",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
   "scripts": {
-    "test": "node --test tests/annotation-boundary.spec.ts"
+    "test": "node --test packages/shared/test/*.spec.ts apps/api/test/*.spec.ts apps/web/test/*.spec.ts",
+    "test:shared": "node --test packages/shared/test/*.spec.ts",
+    "test:api": "node --test apps/api/test/*.spec.ts",
+    "test:web": "node --test apps/web/test/*.spec.ts",
+    "arch:check": "node scripts/arch-check.mjs",
+    "verify": "npm run arch:check && npm test",
+    "github:sync": "node scripts/github-sync-issues.mjs",
+    "github:dry-run": "node scripts/github-sync-issues.mjs --dry-run"
   }
 }

@@ -1,0 +1,62 @@
+name: Spriter CI & Architecture Guardrails
+
+on:
+  push:
+    branches: [master, main, 'feat/**']
+  pull_request:
+    branches: [master, main]
+
+jobs:
+  verify-architecture-and-tests:
+    name: Architecture Guardrails (R1-R6) & Boundary Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 24+
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Install workspace dependencies
+        run: npm install
+
+      - name: Enforce Architecture Boundaries & AI Agent Context (R1-R6)
+        run: npm run arch:check
+
+      - name: Run @spriter/shared Contract & Domain Policy Tests
+        run: npm run test:shared
+
+      - name: Run @spriter/api OCC, 984-Task Race & 7-Day TTL Tests
+        run: npm run test:api
+
+      - name: Run @spriter/web ViewportBridge, Store & Conflict UI Tests
+        run: npm run test:web
+
+  postgres-schema-verification:
+    name: PostgreSQL 16 Schema & Migration Check
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: spriter
+          POSTGRES_PASSWORD: spriter_dev_password
+          POSTGRES_DB: spriter_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Apply 0000_init.sql migration on PostgreSQL 16
+        env:
+          PGPASSWORD: spriter_dev_password
+        run: |
+          psql -h localhost -U spriter -d spriter_test -v ON_ERROR_STOP=1 -f apps/api/src/db/migrations/0000_init.sql

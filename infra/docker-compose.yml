@@ -1,0 +1,49 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: spriter-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: spriter
+      POSTGRES_PASSWORD: spriter_dev_password
+      POSTGRES_DB: spriter_dev
+    ports:
+      - '5432:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ../apps/api/src/db/migrations/0000_init.sql:/docker-entrypoint-initdb.d/0000_init.sql:ro
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U spriter -d spriter_dev']
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  minio:
+    image: minio/minio:latest
+    container_name: spriter-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: spriter_minio
+      MINIO_ROOT_PASSWORD: spriter_minio_password
+    ports:
+      - '9000:9000'
+      - '9001:9001'
+    volumes:
+      - minio_data:/data
+
+  minio-init:
+    image: minio/mc:latest
+    depends_on:
+      - minio
+    entrypoint: >
+      /bin/sh -c "
+      sleep 3;
+      mc alias set local http://minio:9000 spriter_minio spriter_minio_password;
+      mc mb --ignore-existing local/models;
+      exit 0;
+      "
+
+volumes:
+  postgres_data:
+  minio_data:
