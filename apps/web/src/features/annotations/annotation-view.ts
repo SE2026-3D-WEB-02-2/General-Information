@@ -10,6 +10,16 @@ export function annotationTitle(item: AnnotationDomainSnapshot): string {
   return item.meshName || `Pin ${item.id.slice(0, 8)}`;
 }
 
+export function matchesAnnotationQuery(item: AnnotationDomainSnapshot, query: string): boolean {
+  const normalizedQuery = query.trim().toLocaleLowerCase('vi-VN');
+  if (!normalizedQuery) return true;
+  const searchable = [
+    annotationTitle(item), item.meshName ?? '', item.authorName ?? '',
+    ...item.comments.map((comment) => comment.content),
+  ].join(' ').toLocaleLowerCase('vi-VN');
+  return searchable.includes(normalizedQuery);
+}
+
 export function displayName(name: string | undefined, id: string): string {
   return name?.trim() || id;
 }

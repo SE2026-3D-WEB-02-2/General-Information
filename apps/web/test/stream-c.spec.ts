@@ -7,6 +7,7 @@ import { ApiClientError, HttpAnnotationApi } from '../src/adapters/http-annotati
 import { ModelUploadService } from '../src/adapters/model-upload.ts';
 import { SocketRealtimeAdapter, type SocketLike } from '../src/adapters/socket-realtime-adapter.ts';
 import { AnnotationThreadPanelController } from '../src/features/annotations/AnnotationThreadController.ts';
+import { matchesAnnotationQuery } from '../src/features/annotations/annotation-view.ts';
 import { FakeViewportBridge } from '../src/viewport/FakeViewportBridge.ts';
 
 const base: AnnotationDomainSnapshot = {
@@ -34,6 +35,21 @@ describe('Stream C — collaboration workflow', () => {
     assert.equal(store.getPendingPick(), null);
     assert.ok(changes >= 3);
     unsubscribe();
+  });
+
+  it('C1: searches mesh name, author and full discussion beyond the shortened title', () => {
+    const item = {
+      ...base, meshName: 'Bộ phận cửa trước', authorName: 'Nguyễn Văn Hiếu',
+      comments: [
+        { ...base.comments[0]!, content: 'Một bình luận đầu tiên dài hơn bốn mươi tám ký tự để tiêu đề bị cắt bớt phần cuối quan trọng' },
+        { ...base.comments[0]!, id: 'c-2', content: 'Cần kiểm tra khe hở phía bên phải.' },
+      ],
+    };
+    assert.equal(matchesAnnotationQuery(item, 'cửa trước'), true);
+    assert.equal(matchesAnnotationQuery(item, 'nguyễn văn hiếu'), true);
+    assert.equal(matchesAnnotationQuery(item, 'phần cuối quan trọng'), true);
+    assert.equal(matchesAnnotationQuery(item, 'khe hở phía bên phải'), true);
+    assert.equal(matchesAnnotationQuery(item, 'không tồn tại'), false);
   });
 
   it('C3/C8: preserves a status attempt on 409, can accept server, and refuses invalid retry', async () => {

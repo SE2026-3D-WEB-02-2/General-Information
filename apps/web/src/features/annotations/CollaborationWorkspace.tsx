@@ -17,7 +17,7 @@ import { SocketRealtimeAdapter, type SocketLike } from '../../adapters/socket-re
 import type { ViewportBridge } from '@spriter/shared';
 import { AnnotationThreadPanelController } from './AnnotationThreadController.ts';
 import type { WorkspaceApiPort } from './workspace-ports.ts';
-import { annotationTitle, displayName, formatDate, initials, statusLabels } from './annotation-view.ts';
+import { annotationTitle, displayName, formatDate, initials, matchesAnnotationQuery, statusLabels } from './annotation-view.ts';
 import './collaboration.css';
 
 type Filter = 'ALL' | AnnotationStatus;
@@ -117,8 +117,7 @@ export function CollaborationWorkspace({ api, store, bridge, modelId, mode, crea
   const commentDraft = selected ? commentDrafts[selected.id] ?? '' : '';
   const pendingPick = store.getPendingPick();
   const visible = useMemo(() => annotations
-    .filter((item) => (filter === 'ALL' || item.status === filter) &&
-      annotationTitle(item).toLocaleLowerCase('vi-VN').includes(query.trim().toLocaleLowerCase('vi-VN')))
+    .filter((item) => (filter === 'ALL' || item.status === filter) && matchesAnnotationQuery(item, query))
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)), [annotations, filter, query]);
 
   useEffect(() => { api.setAccessToken(session?.accessToken ?? null); }, [api, session]);
@@ -254,7 +253,9 @@ export function CollaborationWorkspace({ api, store, bridge, modelId, mode, crea
     setWorking(true); setNotice('');
     try {
       const result = await api.importAnnotations(activeModelId, { mode: force ? 'FORCE_HASH_MISMATCH' : 'STRICT', payload });
+      store.clearAll();
       for (const item of result.annotations) store.upsertSnapshot(item);
+      if (result.annotations[0]) store.selectAnnotation(result.annotations[0].id, false);
       setPendingImport(null);
       setImportErrors(null);
       setNotice(`Đã nhập ${result.importedCount} pin.`);
@@ -310,6 +311,23 @@ export function CollaborationWorkspace({ api, store, bridge, modelId, mode, crea
     setPlacementArmed(false);
     setInitialComment('');
   }
+
+  useEffect(() => {
+    function handleWorkspaceKeyDown(event: KeyboardEvent) {
+      if (event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey) return;
+      if (event.key === 'Escape' && (placementArmed || pendingPick)) {
+        cancelPlacement();
+        return;
+      }
+      if (event.key.toLowerCase() !== 'n' || !session || working || placementArmed || pendingPick) return;
+      const target = event.target;
+      if (target instanceof HTMLElement &&
+        (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName) || target.closest('[role="dialog"]'))) return;
+      armPlacement();
+    }
+    window.addEventListener('keydown', handleWorkspaceKeyDown);
+    return () => window.removeEventListener('keydown', handleWorkspaceKeyDown);
+  }, [placementArmed, pendingPick, session, working]);
 
   if (!session) {
     return <div className="auth-screen"><form className="auth-card" onSubmit={(event) => void submitAuth(event)}>
