@@ -102,6 +102,7 @@ export class AnnotationThreadPanelController {
       throw new Error(`CONCURRENCY_CONFLICT:v${result.serverSnapshot.version}`);
     }
 
+    this.pendingStatusAttempt = null;
     throw new Error(`API_REJECTED:${result.errorCode}`);
   }
 
@@ -113,8 +114,24 @@ export class AnnotationThreadPanelController {
     if (!this.conflictSnapshot || !this.pendingStatusAttempt) {
       throw new Error('NO_ACTIVE_CONFLICT_TO_RETRY');
     }
+    const latest = this.conflictSnapshot;
+    const pending = this.pendingStatusAttempt;
+    const check = evaluateAnnotationMutation(latest, { status: pending });
+    if (!check.allowed) {
+      throw new Error(`DOMAIN_PRECHECK_REJECTED:${check.reasonCode}`);
+    }
+    this.currentAnnotation = latest;
+    this.conflictSnapshot = null;
+    await this.updateStatus(pending);
+  }
+
+  public acceptServerConflictSnapshot(): AnnotationDomainSnapshot {
+    if (!this.conflictSnapshot) {
+      throw new Error('NO_ACTIVE_CONFLICT_TO_ACCEPT');
+    }
     this.currentAnnotation = this.conflictSnapshot;
     this.conflictSnapshot = null;
-    await this.updateStatus(this.pendingStatusAttempt);
+    this.pendingStatusAttempt = null;
+    return this.currentAnnotation;
   }
 }

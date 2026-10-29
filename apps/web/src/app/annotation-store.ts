@@ -24,6 +24,8 @@ export interface ConflictContext {
  */
 export class AnnotationWorkspaceStore {
   private readonly byId = new Map<string, AnnotationDomainSnapshot>();
+  private readonly listeners = new Set<() => void>();
+  private revision = 0;
   private selectedId: string | null = null;
   private pendingPick: SurfacePick | null = null;
   private activeConflict: ConflictContext | null = null;
@@ -36,6 +38,7 @@ export class AnnotationWorkspaceStore {
     this.bridge.onSurfacePicked((pick) => {
       this.pendingPick = pick;
       this.bridge.setPlacementMode(false);
+      this.notify();
     });
 
     this.bridge.onPinSelected((annotationId) => {
@@ -50,6 +53,7 @@ export class AnnotationWorkspaceStore {
     }
     this.byId.set(incoming.id, structuredClone(incoming));
     this.syncPinsToBridge();
+    this.notify();
     return true;
   }
 
@@ -68,12 +72,14 @@ export class AnnotationWorkspaceStore {
     }
     this.byId.set(incoming.id, structuredClone(incoming));
     this.syncPinsToBridge();
+    this.notify();
     return decision;
   }
 
   public selectAnnotation(annotationId: string | null, focusCamera = true): void {
     this.selectedId = annotationId;
     this.syncPinsToBridge();
+    this.notify();
     if (annotationId && focusCamera) {
       const target = this.byId.get(annotationId);
       if (target) {
@@ -84,6 +90,7 @@ export class AnnotationWorkspaceStore {
 
   public recordConflict(conflict: ConflictContext): void {
     this.activeConflict = conflict;
+    this.notify();
   }
 
   /**
@@ -97,8 +104,51 @@ export class AnnotationWorkspaceStore {
     const { serverSnapshot } = this.activeConflict;
     this.upsertSnapshot(serverSnapshot);
     this.activeConflict = null;
+    this.notify();
     return serverSnapshot;
   }
+
+  public removeAnnotation(annotationId: string): void {
+    if (!this.byId.delete(annotationId)) return;
+    if (this.selectedId === annotationId) this.selectedId = null;
+    this.syncPinsToBridge();
+    this.notify();
+  }
+
+  public clearAll(): void {
+    this.byId.clear();
+    this.selectedId = null;
+    this.pendingPick = null;
+    this.activeConflict = null;
+    this.needsCatchUpFetch = false;
+    this.syncPinsToBridge();
+    this.notify();
+  }
+
+  public getAnnotations(): AnnotationDomainSnapshot[] {
+    return Array.from(this.byId.values()).map((item) => structuredClone(item));
+  }
+
+  public getSelectedId(): string | null {
+    return this.selectedId;
+  }
+
+  public clearPendingPick(): void {
+    this.pendingPick = null;
+    this.notify();
+  }
+
+  public clearMissedVersionGap(): void {
+    this.needsCatchUpFetch = false;
+    this.notify();
+  }
+
+  public subscribe = (listener: () => void): (() => void) => {
+    this.listeners.add(listener);
+    return () => this.listeners.delete(listener);
+  };
+
+  public getRevision = (): number => this.revision;
 
   public getSelectedAnnotation(): AnnotationDomainSnapshot | undefined {
     return this.selectedId ? this.byId.get(this.selectedId) : undefined;
@@ -125,5 +175,10 @@ export class AnnotationWorkspaceStore {
       selected: ann.id === this.selectedId,
     }));
     this.bridge.setPins(pins);
+  }
+
+  private notify(): void {
+    this.revision += 1;
+    for (const listener of this.listeners) listener();
   }
 }
