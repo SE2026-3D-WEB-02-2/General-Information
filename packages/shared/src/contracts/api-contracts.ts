@@ -49,7 +49,7 @@ export interface AuthSessionResponseDto {
  * - Only the annotation's original author OR a PROJECT_LEAD can transition RESOLVED -> ARCHIVED or delete an annotation.
  */
 export function canActorModifyAnnotation(
-  actor: Pick<UserSummary, 'id' | 'role'>,
+  actor: { id: string; role?: UserRole },
   annotation: Pick<AnnotationDomainSnapshot, 'authorId'>,
   action: 'COMMENT' | 'TRANSITION_STANDARD' | 'ARCHIVE' | 'DELETE',
 ): boolean {

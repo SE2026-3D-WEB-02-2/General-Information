@@ -34,6 +34,7 @@ export type UpdateAnnotationOutcome =
   | { status: 'OK'; snapshot: AnnotationDomainSnapshot }
   | { status: 'NOT_FOUND' }
   | { status: 'FORBIDDEN'; message: string }
+  | { status: 'INVALID_INPUT'; errorCode: string; message: string }
   | { status: 'INVARIANT_VIOLATED'; reasonCode: string; message: string }
   | {
       status: 'CONCURRENCY_CONFLICT';
@@ -72,6 +73,10 @@ export class AnnotationService {
     this.repo = repo ?? new InMemoryAnnotationRepository();
     this.clock = clock ?? { now: () => new Date() };
     this.realtime = realtime ?? { publishToModelRoom: () => {} };
+    /** Idempotency-key guard: maps an idempotencyKey to the last successful approve for that annotation. */
+    this.idempotencyStore = new Map<string, { annotationId: string; version: number }>();
+    /** Roles permitted to approve: the Reviewer role plus the super-role PROJECT_LEAD. */
+    this.approverRoles = new Set<UserRole>(['REVIEWER', 'PROJECT_LEAD']);
   }
 
   public seedRecord(record: InternalDbAnnotationRecord): void {
@@ -172,6 +177,49 @@ export class AnnotationService {
       createdAt: now.toISOString(),
       expiresAt: expiresAt.toISOString(),
     };
+  }
+
+  /**
+   * Reviewer-only approval (VT-087).
+   * - RBAC: only REVIEWER / PROJECT_LEAD may approve.
+   * - Idempotency: a repeated idempotencyKey for the same annotation returns the stored
+   *   outcome without a second state transition or version bump.
+   * - Concurrency: delegates to updateWithConcurrencyControl (OCC pre-check + atomic CAS).
+   */
+  public async approveAnnotation(
+    id: string,
+    actorId: string,
+    command: { expectedVersion: number; idempotencyKey?: string },
+    actorRole: UserRole = 'REVIEWER',
+  ): Promise<UpdateAnnotationOutcome> {
+    if (!this.approverRoles.has(actorRole)) {
+      return { status: 'FORBIDDEN', message: 'Only REVIEWER and PROJECT_LEAD may approve annotations.' };
+    }
+    if (!command.idempotencyKey) {
+      return {
+        status: 'INVALID_INPUT',
+        errorCode: 'MISSING_IDEMPOTENCY_KEY',
+        message: 'idempotencyKey is required for approve.',
+      };
+    }
+    const existing = this.idempotencyStore.get(command.idempotencyKey);
+    if (existing && existing.annotationId === id) {
+      const snapshot = await this.repo.findById(id);
+      return { status: 'OK', snapshot: this.toDomainSnapshot(snapshot!) };
+    }
+    const result = await this.updateWithConcurrencyControl(
+      id,
+      actorId,
+      { ...command, status: 'RESOLVED' },
+      actorRole,
+    );
+    if (result.status === 'OK') {
+      this.idempotencyStore.set(command.idempotencyKey, {
+        annotationId: id,
+        version: result.snapshot.version,
+      });
+    }
+    return result;
   }
 
   public async listAnnotations(
@@ -334,7 +382,7 @@ export class AnnotationService {
       normal?: Vec3;
       cameraState?: CameraState;
     },
-    actorRole: UserRole = 'REVIEWER',
+    actorRole?: UserRole,
   ): Promise<UpdateAnnotationOutcome> {
     const current = await this.repo.findById(id);
     if (!current) {
@@ -354,6 +402,20 @@ export class AnnotationService {
           message: 'Only the annotation author or a PROJECT_LEAD can archive an annotation.',
         };
       }
+    }
+
+    // 0b. Reviewer content-protection gate (VT-087): a reviewer may approve via
+    // approveAnnotation but must never mutate the annotation's spatial content.
+    if (
+      actorRole === 'REVIEWER' &&
+      (command.position !== undefined ||
+        command.normal !== undefined ||
+        command.cameraState !== undefined)
+    ) {
+      return {
+        status: 'FORBIDDEN',
+        message: 'Reviewer may only approve; modifying annotation content is forbidden.',
+      };
     }
 
     // 1. Optimistic Concurrency Pre-Check
