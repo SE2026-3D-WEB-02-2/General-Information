@@ -487,22 +487,7 @@ export class AnnotationService {
       updateAudit,
     );
 
-    if (!committed) {
-      const latest = (await this.repo.findById(id)) ?? current;
-      const raceConflictAudit = this.buildOperationalLog(
-        id,
-        actorId,
-        'CONCURRENCY_CONFLICT',
-        command.expectedVersion,
-        latest.version,
-      );
-      await this.repo.appendAuditLog(raceConflictAudit);
-      return {
-        status: 'CONCURRENCY_CONFLICT',
-        currentVersion: latest.version,
-        serverSnapshot: this.toDomainSnapshot(latest),
-      };
-    }
+
 
     const snapshot = this.toDomainSnapshot(updatedRow);
     // 4. Emit Realtime Event ONLY AFTER transaction committed
