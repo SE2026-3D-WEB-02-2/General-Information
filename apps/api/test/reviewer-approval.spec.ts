@@ -71,7 +71,8 @@ function seedAnnotationViaRepo(repo, id = 'ann-review-1') {
   return id;
 }
 
-function req(method, path, { auth = REVIEWER, idempotencyKey, body } = {}) {
+type ReqOpts = { auth?: string; idempotencyKey?: string; body?: unknown };
+function req(method: string, path: string, { auth = REVIEWER, idempotencyKey, body }: ReqOpts = {}) {
   return {
     method,
     path,
@@ -195,5 +196,38 @@ describe('VT-087 Reviewer Approval — vertical slice', () => {
     const fresh = await app.annotationRepo.findById(id);
     assert.equal(fresh.version, versionAfterFirst, 'no version increment on idempotent retry');
     assert.equal(fresh.status, 'RESOLVED');
+  });
+
+  it('TC10 MISSING-KEY — approve without an Idempotency-Key is rejected (422), no state change', async () => {
+    const app = new SpriterApiApplication({ clock: { now: () => new Date(TS) } });
+    const id = seedAnnotation(app);
+    const res = await app.handleRequest(req('POST', `/api/v1/annotations/${id}/approve`, {
+      auth: REVIEWER, body: { expectedVersion: 1 },
+    }));
+    assert.equal(res.statusCode, 422);
+    assert.equal((res.body as any).errorCode, 'MISSING_IDEMPOTENCY_KEY');
+    const fresh = (await app.annotationRepo.findById(id))!;
+    assert.equal(fresh.version, 1);
+    assert.equal(fresh.status, 'OPEN');
+  });
+
+  it('TC11 STORE-FAILURE — a failing store propagates and leaves no partial state', async () => {
+    const repo = new InMemoryAnnotationRepository();
+    seedAnnotationViaRepo(repo);
+    const failingRepo = {
+      findById: (targetId: string) => repo.findById(targetId),
+      appendAuditLog: () => {},
+      updateIfVersion: async () => {
+        throw new Error('store unavailable');
+      },
+    };
+    const service = new AnnotationService(failingRepo as any, { now: () => new Date(TS) });
+    await assert.rejects(
+      () => service.approveAnnotation('ann-review-1', 'user-3d-huy', { expectedVersion: 1, idempotencyKey: 'approve-k11' }, 'REVIEWER'),
+      /store unavailable/,
+    );
+    const rec = (await repo.findById('ann-review-1'))!;
+    assert.equal(rec.version, 1, 'no partial commit');
+    assert.equal(rec.status, 'OPEN', 'no partial state transition');
   });
 });
