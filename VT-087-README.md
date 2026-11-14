@@ -41,10 +41,10 @@ npm run test:vt087:load
 ```bash
 git switch individual/vt-087-reviewer-approval
 git checkout 3281ebe86ac84d0b4aee1db95895e2c1f78ebe4d   # RED: tests only, no implementation
-npm run test:vt087                                       # suite has 12 tests (TC01–TC12); TC02/03/05/07/08/09 FAIL
+npm run test:vt087                                       # suite has 9 tests (TC01–TC09); TC02/03/05/07/08/09 FAIL (6 fail)
 git checkout eb2cd62f7aa928c7cad63afb70ce7f4150ac7924   # GREEN: + implementation patch
-npm run test:vt087                                       # 12/12 PASS (TC01–TC12)
-git checkout 22dd10bd70852e953d4efd8e3014c9f332050ec2   # final tip: T2 tests added
+npm run test:vt087                                       # 9/9 PASS (TC01–TC09)
+git checkout 22dd10bd70852e953d4efd8e3014c9f332050ec2   # final tip: T2 tests added (TC13–TC20)
 npm run test:vt087                                       # 20/20 PASS (TC01–TC20)
 ```
 
@@ -81,8 +81,8 @@ The mutation branch is **not** part of the submission; the submission branch nev
 
 | Hash (short) | Subject | What changed | Tests added in it |
 |---|---|---|---|
-| 3281ebe | test(vt-087): add reviewer-approval vertical-slice tests (RED) | tests | TC01–TC11 (RED, some failing) |
-| eb2cd62 | feat(vt-087): reviewer approval with OCC + idempotency guard | implementation | TC01–TC12 (GREEN, 12 all pass) |
+| 3281ebe | test(vt-087): add reviewer-approval vertical-slice tests (RED) | tests | TC01–TC09 (9 tests; RED, 6 failing) |
+| eb2cd62 | feat(vt-087): reviewer approval with OCC + idempotency guard | implementation | 0 (GREEN, 9/9 PASS) |
 | 9123a4d | test(vt-087): add TC10/TC11 risk tests + 100-task load harness | tests | TC10, TC11 (risk tests) |
 | bccd603 | test(vt-087): add TC12 not-found path + tighten req() types | tests | TC12 |
 | 924b8df | docs(vt-087): add README + English report for BT3 | docs | 0 |
