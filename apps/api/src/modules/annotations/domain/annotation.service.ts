@@ -404,19 +404,7 @@ export class AnnotationService {
       }
     }
 
-    // 0b. Reviewer content-protection gate (VT-087): a reviewer may approve via
-    // approveAnnotation but must never mutate the annotation's spatial content.
-    if (
-      actorRole === 'REVIEWER' &&
-      (command.position !== undefined ||
-        command.normal !== undefined ||
-        command.cameraState !== undefined)
-    ) {
-      return {
-        status: 'FORBIDDEN',
-        message: 'Reviewer may only approve; modifying annotation content is forbidden.',
-      };
-    }
+
 
     // 1. Optimistic Concurrency Pre-Check
     if (current.version !== command.expectedVersion) {
