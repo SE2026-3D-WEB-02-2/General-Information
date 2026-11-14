@@ -202,11 +202,7 @@ export class AnnotationService {
         message: 'idempotencyKey is required for approve.',
       };
     }
-    const existing = this.idempotencyStore.get(command.idempotencyKey);
-    if (existing && existing.annotationId === id) {
-      const snapshot = await this.repo.findById(id);
-      return { status: 'OK', snapshot: this.toDomainSnapshot(snapshot!) };
-    }
+
     const result = await this.updateWithConcurrencyControl(
       id,
       actorId,
