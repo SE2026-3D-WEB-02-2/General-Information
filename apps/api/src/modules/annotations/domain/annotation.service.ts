@@ -192,9 +192,7 @@ export class AnnotationService {
     command: { expectedVersion: number; idempotencyKey?: string },
     actorRole: UserRole = 'REVIEWER',
   ): Promise<UpdateAnnotationOutcome> {
-    if (!this.approverRoles.has(actorRole)) {
-      return { status: 'FORBIDDEN', message: 'Only REVIEWER and PROJECT_LEAD may approve annotations.' };
-    }
+
     if (!command.idempotencyKey) {
       return {
         status: 'INVALID_INPUT',
