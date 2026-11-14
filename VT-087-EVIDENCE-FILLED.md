@@ -77,7 +77,7 @@ Decision table: conditions (actorRole, expectedVersion vs current, body content,
 | Baseline clean | a88aac211712800cdc1c993edd0fc28ec5d988d1 | npm run verify | (not saved) | 23 tests, 4 suites, 0 fail |
 | RED | 3281ebe86ac84d0b4aee1db95895e2c1f78ebe4d | test runner (spec had 9 tests) | (not saved) | 9 tests, TC02/03/05/07/08/09 FAIL (6 fail) |
 | GREEN | eb2cd62f7aa928c7cad63afb70ce7f4150ac7924 | test runner (spec had 9 tests) | (not saved) | 9 tests, 9 PASS |
-| Final tip | 2ef22cd6d8bd8962fe0888b9db09f65a342227db | npm run verify | (not saved) | 35 pass / 0 fail |
+| Final tip | 2ef22cd6d8bd8962fe0888b9db09f65a342227db | npm run verify | (not saved) | 43 pass / 0 fail |
 
 Note: the `test:vt087` npm script was added later on the submission branch; at the RED/GREEN commits the suite was run with `node --test apps/api/test/reviewer-approval.spec.ts`. RC adds TC13-TC20; final tip = 20 tests.
 
