@@ -418,23 +418,7 @@ export class AnnotationService {
       };
     }
 
-    // 1. Optimistic Concurrency Pre-Check
-    if (current.version !== command.expectedVersion) {
-      const serverSnapshot = this.toDomainSnapshot(current);
-      const conflictAudit = this.buildOperationalLog(
-        id,
-        actorId,
-        'CONCURRENCY_CONFLICT',
-        command.expectedVersion,
-        current.version,
-      );
-      await this.repo.appendAuditLog(conflictAudit);
-      return {
-        status: 'CONCURRENCY_CONFLICT',
-        currentVersion: current.version,
-        serverSnapshot,
-      };
-    }
+
 
     // 2. Authoritative Domain Invariant Check (uses shared pure policy)
     const policyResult = evaluateAnnotationMutation(this.toDomainSnapshot(current), {
@@ -480,29 +464,14 @@ export class AnnotationService {
       nextVersion,
     );
 
-    const committed = await this.repo.updateIfVersion(
+    await this.repo.updateIfVersion(
       id,
       command.expectedVersion,
       updatedRow,
       updateAudit,
     );
 
-    if (!committed) {
-      const latest = (await this.repo.findById(id)) ?? current;
-      const raceConflictAudit = this.buildOperationalLog(
-        id,
-        actorId,
-        'CONCURRENCY_CONFLICT',
-        command.expectedVersion,
-        latest.version,
-      );
-      await this.repo.appendAuditLog(raceConflictAudit);
-      return {
-        status: 'CONCURRENCY_CONFLICT',
-        currentVersion: latest.version,
-        serverSnapshot: this.toDomainSnapshot(latest),
-      };
-    }
+
 
     const snapshot = this.toDomainSnapshot(updatedRow);
     // 4. Emit Realtime Event ONLY AFTER transaction committed
