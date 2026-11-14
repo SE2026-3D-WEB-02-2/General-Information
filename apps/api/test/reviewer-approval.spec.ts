@@ -72,7 +72,7 @@ function seedAnnotationViaRepo(repo, id = 'ann-review-1') {
 }
 
 type ReqOpts = { auth?: string; idempotencyKey?: string; body?: unknown };
-function req(method: string, path: string, { auth = REVIEWER, idempotencyKey, body }: ReqOpts = {}) {
+function req(method: 'GET' | 'POST' | 'PATCH' | 'DELETE', path: string, { auth = REVIEWER, idempotencyKey, body }: ReqOpts = {}) {
   return {
     method,
     path,
@@ -229,5 +229,14 @@ describe('VT-087 Reviewer Approval — vertical slice', () => {
     const rec = (await repo.findById('ann-review-1'))!;
     assert.equal(rec.version, 1, 'no partial commit');
     assert.equal(rec.status, 'OPEN', 'no partial state transition');
+  });
+
+  it('TC12 NOT-FOUND — approving a non-existent annotation returns 404', async () => {
+    const app = new SpriterApiApplication({ clock: { now: () => new Date(TS) } });
+    const res = await app.handleRequest(req('POST', '/api/v1/annotations/ann-does-not-exist/approve', {
+      auth: REVIEWER, idempotencyKey: 'approve-k12', body: { expectedVersion: 1 },
+    }));
+    assert.equal(res.statusCode, 404);
+    assert.equal((res.body as any).errorCode, 'ANNOTATION_NOT_FOUND');
   });
 });
