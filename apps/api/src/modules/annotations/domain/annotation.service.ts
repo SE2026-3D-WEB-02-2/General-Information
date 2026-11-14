@@ -418,23 +418,7 @@ export class AnnotationService {
       };
     }
 
-    // 1. Optimistic Concurrency Pre-Check
-    if (current.version !== command.expectedVersion) {
-      const serverSnapshot = this.toDomainSnapshot(current);
-      const conflictAudit = this.buildOperationalLog(
-        id,
-        actorId,
-        'CONCURRENCY_CONFLICT',
-        command.expectedVersion,
-        current.version,
-      );
-      await this.repo.appendAuditLog(conflictAudit);
-      return {
-        status: 'CONCURRENCY_CONFLICT',
-        currentVersion: current.version,
-        serverSnapshot,
-      };
-    }
+
 
     // 2. Authoritative Domain Invariant Check (uses shared pure policy)
     const policyResult = evaluateAnnotationMutation(this.toDomainSnapshot(current), {
