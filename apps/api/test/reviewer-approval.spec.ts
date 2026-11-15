@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { createHmac } from 'node:crypto';
+import type { AddressInfo } from 'node:net';
+import { startSpriterHttpServer } from '../src/server.ts';
 import { SpriterApiApplication } from '../src/http/app-router.ts';
 import { AnnotationService } from '../src/modules/annotations/domain/annotation.service.ts';
 import { InMemoryAnnotationRepository } from '../src/modules/annotations/adapters/in-memory.repository.ts';
@@ -344,5 +346,107 @@ describe('VT-087 Reviewer Approval — vertical slice', () => {
     assert.deepEqual(ALLOWED_TRANSITIONS.IN_PROGRESS, ['OPEN', 'RESOLVED']);
     assert.deepEqual(ALLOWED_TRANSITIONS.RESOLVED, ['IN_PROGRESS', 'ARCHIVED']);
     assert.deepEqual(ALLOWED_TRANSITIONS.ARCHIVED, []);
+  });
+
+  it('TC21 APPROVE-RESOLVED — approving an already-RESOLVED annotation is INVARIANT_VIOLATED', async () => {
+    const repo = new InMemoryAnnotationRepository();
+    const service = new AnnotationService(repo, { now: () => new Date(TS) });
+    const record = {
+      id: 'ann-resolved-1', model_id: 'model-gltf-01', author_id: 'user-author',
+      status: 'RESOLVED', version: 2, position: [1, 0, 0], normal: [0, 1, 0],
+      camera_state: { position: [3.5, 2.1, 4], target: [1, 0, 0] }, mesh_name: 'X',
+      comments: [{ id: 'c1', author_id: 'user-author', content: 'resolved', created_at: TS, updated_at: TS }],
+      created_at: TS, updated_at: TS,
+    };
+    repo.seedRecord(record);
+    // ACT 1: approve an already-RESOLVED annotation with a NEW idempotency key
+    // Expected: INVARIANT_VIOLATED (422), version stays 2, one INVARIANT_VIOLATED audit entry.
+    const res1 = await service.approveAnnotation('ann-resolved-1', 'user-3d-huy', { expectedVersion: 2, idempotencyKey: 'k21-new' }, 'REVIEWER');
+    assert.equal(res1.status, 'INVARIANT_VIOLATED', 'RESOLVED->RESOLVED must not be allowed (INVARIANT_VIOLATED)');
+    assert.equal((res1 as any).reasonCode, 'INVARIANT_VIOLATED', 'reasonCode must be INVARIANT_VIOLATED');
+    const fresh1 = await repo.findById('ann-resolved-1');
+    assert.equal(fresh1!.version, 2, 'version unchanged (2) after RESOLVED->RESOLVED attempt');
+    const logs1 = repo.getAuditLogs();
+    const invLogs1 = logs1.filter((l: any) => l.outcome === 'INVARIANT_VIOLATION');
+    assert.equal(invLogs1.length, 1, 'exactly one INVARIANT_VIOLATED audit entry after the rejected same-status approve');
+    // ACT 2: replay with the SAME idempotency key
+    // Expected: 422 INVARIANT_VIOLATED (same status is still rejected; idempotency store was not
+    // updated because the first approval did not commit a new state). Version and data unchanged.
+    const resReplay = await service.approveAnnotation('ann-resolved-1', 'user-3d-huy', { expectedVersion: 2, idempotencyKey: 'k21-new' }, 'REVIEWER');
+    assert.equal(resReplay.status, 'INVARIANT_VIOLATED', 'same idempotency key replay must still return 422 INVARIANT_VIOLATED (state-level idempotency holds)');
+    const fresh2 = await repo.findById('ann-resolved-1');
+    assert.equal(fresh2!.version, 2, 'version unchanged (2) after same-key replay');
+    const logs2 = repo.getAuditLogs();
+    const invLogs2 = logs2.filter((l: any) => l.outcome === 'INVARIANT_VIOLATION');
+    assert.equal(invLogs2.length, 2, 'exactly two INVARIANT_VIOLATED audit entries (one per rejected same-status approve)');
+  });
+
+  it('TC22 B1 KILL — stale-version approval on ARCHIVED annotation', async () => {
+    // Clean build: OCC pre-check runs first → 409 CONCURRENCY_CONFLICT, version unchanged (3),
+    // and exactly one CONCURRENCY_CONFLICT audit entry.
+    const repoClean = new InMemoryAnnotationRepository();
+    const serviceClean = new AnnotationService(repoClean, { now: () => new Date(TS) });
+    repoClean.seedRecord({
+      id: 'ann-arch-1', model_id: 'model-gltf-01', author_id: 'user-author',
+      status: 'ARCHIVED', version: 3, position: [1, 0, 0], normal: [0, 1, 0],
+      camera_state: { position: [3.5, 2.1, 4], target: [1, 0, 0] }, mesh_name: 'X',
+      comments: [], created_at: TS, updated_at: TS,
+    });
+    const rClean = await serviceClean.approveAnnotation('ann-arch-1', 'user-3d-huy', { expectedVersion: 1, idempotencyKey: 'b1-kill' }, 'REVIEWER');
+    assert.equal(rClean.status, 'CONCURRENCY_CONFLICT', 'clean build: stale-version on ARCHIVED must be rejected as CONCURRENCY_CONFLICT');
+    const cleanVersion = (await repoClean.findById('ann-arch-1')).version;
+    assert.equal(cleanVersion, 3, 'version unchanged on clean build');
+    const cleanLogs = repoClean.getAuditLogs();
+    const concLogs = cleanLogs.filter((l: any) => l.outcome === 'CONCURRENCY_CONFLICT');
+    assert.equal(concLogs.length, 1, 'exactly one CONCURRENCY_CONFLICT audit entry on clean build');
+    // B1 claim (separate worktree; confirmed on mutB1 branch via evidence/b1_kill.log):
+    //   clean branch = 409 CONCURRENCY_CONFLICT; mutB1 (remove OCC pre-check) = 422 INVARIANT_VIOLATED.
+    //   Policy check runs before CAS on B1, so a stale-version request on ARCHIVED is rejected
+    //   as INVARIANT_VIOLATION instead of CONCURRENCY_CONFLICT.
+  });
+
+  it('TC23 PATCH-UNCHANGED-STATUS-PLUS-POSITION - PATCH with unchanged status and position change on non-resolved annotation still returns 200', async () => {
+    const app = new SpriterApiApplication({ clock: { now: () => new Date(TS) } });
+    const id = seedAnnotation(app);
+    // Use PROJECT_LEAD so the reviewer content-protection gate doesn't block position change
+    const leadToken = signToken({ id: 'user-3d-huy', email: 'huy@spriter.local', name: 'Hoàng Đức Huy', role: 'PROJECT_LEAD' });
+    const res = await app.handleRequest(req('PATCH', `/api/v1/annotations/${id}`, {
+      auth: leadToken,
+      body: { expectedVersion: 1, status: 'OPEN', position: [9.9, 9.9, 9.9] },
+    }));
+    assert.equal(res.statusCode, 200, 'PATCH with unchanged status + position change must still return 200');
+    const after = await app.annotationRepo.findById(id);
+    assert.equal(after!.version, 2, 'version must increment (position change)');
+    assert.deepEqual(after!.position, [9.9, 9.9, 9.9], 'position must change');
+    assert.equal(after!.status, 'OPEN', 'status unchanged');
+  });
+  it('TC24 HTTP-IDEMPOTENCY-HEADER — real HTTP server forwards Idempotency-Key so approve works end-to-end', async () => {
+    const { server, app } = startSpriterHttpServer(0);
+    try {
+      await new Promise((resolve) => (server.listening ? resolve(null) : server.once('listening', resolve)));
+      const { port } = server.address() as AddressInfo;
+      seedAnnotation(app);
+      // The real server validates tokens against the wall clock, so sign with "now".
+      const now = Math.floor(Date.now() / 1000);
+      const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url');
+      const body = Buffer.from(JSON.stringify({ id: 'user-3d-huy', email: 'huy@spriter.local', name: 'Hoàng Đức Huy', role: 'REVIEWER', iat: now, exp: now + 600 })).toString('base64url');
+      const sig = createHmac('sha256', 'spriter-dev-hmac-secret-2026').update(`${header}.${body}`).digest('base64url');
+      const send = () => fetch(`http://127.0.0.1:${port}/api/v1/annotations/ann-review-1/approve`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${header}.${body}.${sig}`, 'Idempotency-Key': 'http-k1' },
+        body: JSON.stringify({ expectedVersion: 1 }),
+      });
+      const r1 = await send();
+      assert.equal(r1.status, 200, 'approve over real HTTP with an Idempotency-Key header must succeed');
+      const r2 = await send(); // same key replay over HTTP
+      assert.equal(r2.status, 200, 'same-key replay over HTTP must return the stored outcome');
+      const after = await app.annotationRepo.findById('ann-review-1');
+      assert.equal(after!.status, 'RESOLVED');
+      assert.equal(after!.version, 2, 'replay over HTTP must not bump the version twice');
+      const pre = await fetch(`http://127.0.0.1:${port}/api/v1/annotations/ann-review-1/approve`, { method: 'OPTIONS' });
+      assert.match(pre.headers.get('access-control-allow-headers') ?? '', /Idempotency-Key/i, 'CORS must allow the Idempotency-Key header for the web client');
+    } finally {
+      await new Promise((resolve) => server.close(resolve));
+    }
   });
 });
