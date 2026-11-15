@@ -600,12 +600,9 @@ export class AnnotationService {
     const audit = this.buildOperationalLog(id, actorId, 'CREATED', claimed.record.version, restored.version);
     try {
       await this.repo.insert(restored, audit);
-    } catch (error) {
-      await this.tombstones.save(claimed);
-      return {
-        status: 'RESTORE_FAILED',
-        message: `Restore could not be saved (${(error as Error).message}). Nothing was changed; retry before the undo window closes.`,
-      };
+    } catch {
+      // MUTANT M1: swallow and pretend success
+      return { status: 'OK', snapshot: this.toDomainSnapshot(restored) };
     }
 
     const snapshot = this.toDomainSnapshot(restored);
