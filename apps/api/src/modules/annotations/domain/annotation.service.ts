@@ -558,12 +558,49 @@ export class AnnotationService {
       };
     }
 
+    const existingById = new Map<string, InternalDbAnnotationRecord>();
+    const importItemErrors: ImportItemError[] = [];
+    const seenIds = new Set<string>();
+    for (const [index, item] of dto.payload.annotations.entries()) {
+      if (seenIds.has(item.id)) {
+        importItemErrors.push({
+          index,
+          annotationId: item.id,
+          reasonCode: 'DUPLICATE_ANNOTATION_ID',
+          message: `Annotation id "${item.id}" appears more than once in the import file.`,
+        });
+        continue;
+      }
+      seenIds.add(item.id);
+      const existing = await this.repo.findById(item.id);
+      if (!existing) continue;
+      if (existing.model_id !== modelId) {
+        importItemErrors.push({
+          index,
+          annotationId: item.id,
+          reasonCode: 'ANNOTATION_ID_OWNED_BY_OTHER_MODEL',
+          message: `Annotation id "${item.id}" already belongs to another model and cannot be imported here.`,
+        });
+        continue;
+      }
+      existingById.set(item.id, existing);
+    }
+    if (importItemErrors.length > 0) {
+      return { status: 'VALIDATION_FAILED', itemErrors: importItemErrors };
+    }
+
     const nowIso = this.clock.now().toISOString();
     const records: InternalDbAnnotationRecord[] = [];
     const audits: OperationalAuditLogEntry[] = [];
 
     for (const item of dto.payload.annotations) {
-      const version = Number.isInteger(item.version) && item.version >= 1 ? item.version : 1;
+      const existing = existingById.get(item.id);
+      // Import is a write: an existing row must move forward (stored + 1) so clients holding the
+      // old version get 409 and realtime guards don't drop the change as stale. New rows keep the
+      // exported version.
+      const version = existing
+        ? existing.version + 1
+        : Number.isInteger(item.version) && item.version >= 1 ? item.version : 1;
       records.push({
         id: item.id,
         model_id: modelId,
@@ -579,7 +616,11 @@ export class AnnotationService {
         created_at: item.createdAt ?? nowIso,
         updated_at: nowIso,
       });
-      audits.push(this.buildOperationalLog(item.id, actorId, 'CREATED', 0, version));
+      audits.push(
+        existing
+          ? this.buildOperationalLog(item.id, actorId, 'UPDATED', existing.version, version)
+          : this.buildOperationalLog(item.id, actorId, 'CREATED', 0, version),
+      );
     }
 
     await this.repo.bulkReplaceOrInsert(modelId, records, audits);

@@ -103,6 +103,15 @@ export class InMemoryAnnotationRepository implements AnnotationRepositoryPort {
     records: InternalDbAnnotationRecord[],
     audits: OperationalAuditLogEntry[],
   ): Promise<void> {
+    // Mirror the Postgres guard: validate every row first so the batch stays all-or-nothing.
+    for (const r of records) {
+      const current = this.dbStore.get(r.id);
+      if (current && (current.model_id !== r.model_id || current.version >= r.version)) {
+        throw new Error(
+          `Import aborted: annotation "${r.id}" belongs to another model or was modified concurrently (version guard).`,
+        );
+      }
+    }
     for (const r of records) {
       this.dbStore.set(r.id, structuredClone(r));
     }

@@ -168,7 +168,11 @@ export type ApiErrorCode =
 export interface ImportItemError {
   index: number;
   annotationId: string;
-  reasonCode: PolicyReasonCode | 'INVALID_SCHEMA';
+  reasonCode:
+    | PolicyReasonCode
+    | 'INVALID_SCHEMA'
+    | 'ANNOTATION_ID_OWNED_BY_OTHER_MODEL'
+    | 'DUPLICATE_ANNOTATION_ID';
   message: string;
 }
 

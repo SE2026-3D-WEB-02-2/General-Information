@@ -676,4 +676,167 @@ describe('@spriter/api — Full Stream A Backend Suite (M1–M4: [A1]–[A10])',
     assert.equal((metricsAfterPurge.body as any).totalAuditEvents, 0);
     assert.equal((metricsAfterPurge.body as any).adr001ReviewTriggered, false);
   });
+
+  const importItem = (id: string, version: number) => ({
+    id,
+    modelId: 'model-gltf-01',
+    authorId: 'user-lead',
+    status: 'OPEN' as const,
+    version,
+    position: [9, 9, 9] as [number, number, number],
+    normal: [0, 1, 0] as [number, number, number],
+    cameraState: { position: [1, 1, 1] as [number, number, number], target: [0, 0, 0] as [number, number, number] },
+    comments: [],
+    updatedAt: '2026-11-15T00:00:00.000Z',
+  });
+  const importBody = (annotations: ReturnType<typeof importItem>[]) => ({
+    mode: 'FORCE_HASH_MISMATCH' as const,
+    payload: {
+      schemaVersion: '1.0' as const,
+      exportedAt: '2026-11-15T00:00:00.000Z',
+      modelMeta: { name: 'any.glb', fileHash: 'any-hash' },
+      annotations,
+    },
+  });
+
+  it('11. [A6] Import refuses to overwrite an annotation id that belongs to another model (422, nothing written)', async () => {
+    const repo = new InMemoryAnnotationRepository();
+    repo.seedModel({ id: 'model-b', name: 'b.glb', fileHash: 'hash-b' });
+    const service = new AnnotationService(repo);
+    const controller = new AnnotationController(service);
+    service.seedRecord({
+      id: 'ann-owned-by-a',
+      model_id: 'model-gltf-01',
+      author_id: 'user-a',
+      status: 'IN_PROGRESS',
+      version: 4,
+      position: [1, 2, 3],
+      normal: [0, 1, 0],
+      comments: [],
+      updated_at: '2026-11-01T00:00:00.000Z',
+    });
+
+    const res = await controller.importAnnotations({
+      params: { modelId: 'model-b' },
+      actorId: 'user-b',
+      body: importBody([importItem('ann-new-in-b', 1), importItem('ann-owned-by-a', 1)]),
+    });
+
+    assert.equal(res.statusCode, 422);
+    const itemErrors = (res.body as any).itemErrors;
+    assert.equal(itemErrors.length, 1);
+    assert.equal(itemErrors[0].index, 1);
+    assert.equal(itemErrors[0].annotationId, 'ann-owned-by-a');
+    assert.equal(itemErrors[0].reasonCode, 'ANNOTATION_ID_OWNED_BY_OTHER_MODEL');
+
+    const untouched = await repo.findById('ann-owned-by-a');
+    assert.equal(untouched?.model_id, 'model-gltf-01');
+    assert.equal(untouched?.status, 'IN_PROGRESS');
+    assert.equal(untouched?.version, 4);
+    assert.deepEqual(untouched?.position, [1, 2, 3]);
+    assert.equal(await repo.findById('ann-new-in-b'), undefined, 'all-or-nothing: no item written');
+  });
+
+  it('12. [A6] Import never moves an existing annotation version backwards (OCC stays monotonic)', async () => {
+    const repo = new InMemoryAnnotationRepository();
+    const service = new AnnotationService(repo);
+    const controller = new AnnotationController(service);
+    service.seedRecord({
+      id: 'ann-v5',
+      model_id: 'model-gltf-01',
+      author_id: 'user-lead',
+      status: 'IN_PROGRESS',
+      version: 5,
+      position: [1, 2, 3],
+      normal: [0, 1, 0],
+      comments: [],
+      updated_at: '2026-11-01T00:00:00.000Z',
+    });
+
+    const res = await controller.importAnnotations({
+      params: { modelId: 'model-gltf-01' },
+      actorId: 'user-lead',
+      body: importBody([importItem('ann-v5', 2), importItem('ann-fresh', 3)]),
+    });
+
+    assert.equal(res.statusCode, 201);
+    const byId = new Map((res.body as any).annotations.map((a: any) => [a.id, a]));
+    assert.equal((byId.get('ann-v5') as any).version, 6, 'existing row: stored version + 1');
+    assert.equal((byId.get('ann-fresh') as any).version, 3, 'new row keeps exported version');
+    assert.equal((await repo.findById('ann-v5'))?.version, 6);
+
+    // A client still holding v5 must now get 409 instead of silently overwriting the imported state.
+    const stalePatch = await controller.patchAnnotation({
+      params: { id: 'ann-v5' },
+      actorId: 'user-lead',
+      body: { expectedVersion: 5, status: 'OPEN' },
+    });
+    assert.equal(stalePatch.statusCode, 409);
+
+    const auditForExisting = service.getOperationalLogs().find((l) => l.annotationId === 'ann-v5');
+    assert.equal(auditForExisting?.outcome, 'UPDATED');
+    assert.equal(auditForExisting?.expectedVersion, 5);
+    assert.equal(auditForExisting?.actualVersion, 6);
+  });
+
+  it('13. [A6] PostgresAnnotationRepository.bulkReplaceOrInsert guards ON CONFLICT by model_id + monotonic version and rolls back on a skipped row', async () => {
+    const executedQueries: string[] = [];
+    let skipAnnotationUpsert = false;
+    const fakeSqlDriver: SqlExecutorPort = {
+      async query(sql) {
+        const normalized = sql.replace(/\s+/g, ' ').trim();
+        executedQueries.push(normalized);
+        if (normalized.startsWith('INSERT INTO annotations') && skipAnnotationUpsert) {
+          return { rows: [], rowCount: 0 };
+        }
+        return { rows: [], rowCount: 1 };
+      },
+      async transaction(fn) {
+        return fn(this);
+      },
+    };
+    const pgRepo = new PostgresAnnotationRepository(fakeSqlDriver);
+    const record = {
+      id: 'ann-pg-import',
+      model_id: 'model-b',
+      author_id: 'user-b',
+      status: 'OPEN' as const,
+      version: 2,
+      position: [0, 0, 0] as [number, number, number],
+      normal: [0, 1, 0] as [number, number, number],
+      comments: [],
+      updated_at: '2026-11-15T00:00:00.000Z',
+    };
+
+    await pgRepo.bulkReplaceOrInsert('model-b', [record], []);
+    assert.ok(
+      executedQueries[0]!.includes(
+        'WHERE annotations.model_id = EXCLUDED.model_id AND annotations.version < EXCLUDED.version',
+      ),
+    );
+
+    skipAnnotationUpsert = true;
+    await assert.rejects(() => pgRepo.bulkReplaceOrInsert('model-b', [record], []), /ann-pg-import/);
+  });
+
+  it('14. [A6] Import rejects duplicate annotation ids inside one file (422 per duplicate, nothing written)', async () => {
+    const repo = new InMemoryAnnotationRepository();
+    const service = new AnnotationService(repo);
+    const controller = new AnnotationController(service);
+
+    const res = await controller.importAnnotations({
+      params: { modelId: 'model-gltf-01' },
+      actorId: 'user-lead',
+      body: importBody([importItem('ann-dup', 1), importItem('ann-unique', 1), importItem('ann-dup', 2)]),
+    });
+
+    assert.equal(res.statusCode, 422);
+    const itemErrors = (res.body as any).itemErrors;
+    assert.equal(itemErrors.length, 1);
+    assert.equal(itemErrors[0].index, 2);
+    assert.equal(itemErrors[0].annotationId, 'ann-dup');
+    assert.equal(itemErrors[0].reasonCode, 'DUPLICATE_ANNOTATION_ID');
+    assert.equal(await repo.findById('ann-dup'), undefined);
+    assert.equal(await repo.findById('ann-unique'), undefined);
+  });
 });
