@@ -1,0 +1,139 @@
+{
+  "contract": "spriter.annotation-undo-delete",
+  "contractVersion": "1.0.0",
+  "consumer": "@spriter/web (HttpAnnotationApi, SocketRealtimeAdapter, AnnotationWorkspaceStore)",
+  "provider": "@spriter/api (SpriterApiApplication.handleRequest)",
+  "undoWindowMs": 30000,
+  "clockStart": "2026-11-16T03:00:00.000Z",
+  "actors": {
+    "author": { "id": "user-ui-hieu", "email": "hieu@spriter.local", "name": "Hồ Trọng Hiếu (Collab UI)", "role": "REVIEWER" },
+    "lead": { "id": "user-lead-nekover2", "email": "lead@spriter.local", "name": "Nekover2 (Tech Lead)", "role": "PROJECT_LEAD" },
+    "otherReviewer": { "id": "user-3d-huy", "email": "huy@spriter.local", "name": "Hoàng Đức Huy (3D Viewport)", "role": "REVIEWER" }
+  },
+  "_testDataRationale": [
+    "status RESOLVED + version 5: a default/re-created annotation would be OPEN v1, so both fields detect silent defaults",
+    "position/camera all 0 and normal [0,0,-1]: zeros are falsy, a `x || default` bug replaces them; negative component catches abs/normalise bugs",
+    "meshName absent: an optional field must stay absent, not become '' or null",
+    "3 comments incl. 'OK' (2 chars, below MIN_RESOLUTION_COMMENT_LENGTH) and one of exactly 10 chars: restore must not re-filter or re-validate the thread",
+    "Vietnamese diacritics in content: catches encoding/trim bugs"
+  ],
+  "seedAnnotation": {
+    "id": "ann-vt085-1",
+    "modelId": "model-gltf-01",
+    "authorId": "user-ui-hieu",
+    "status": "RESOLVED",
+    "version": 5,
+    "position": [0, 0, 0],
+    "normal": [0, 0, -1],
+    "cameraState": { "position": [0, 0, 0], "target": [0, 0, 0] },
+    "comments": [
+      { "id": "cmt-vt085-1", "authorId": "user-ui-hieu", "content": "Khe hở mép trước lệch 2mm so với bản CAD.", "createdAt": "2026-11-15T08:00:00.000Z" },
+      { "id": "cmt-vt085-2", "authorId": "user-3d-huy", "content": "OK", "createdAt": "2026-11-15T08:05:00.000Z" },
+      { "id": "cmt-vt085-3", "authorId": "user-ui-hieu", "content": "Fixed: 10c", "createdAt": "2026-11-15T08:10:00.000Z" }
+    ],
+    "createdAt": "2026-11-15T08:00:00.000Z",
+    "updatedAt": "2026-11-15T08:10:00.000Z"
+  },
+  "interactions": [
+    {
+      "id": "C01", "ac": "AC1", "given": "ANNOTATION_EXISTS", "description": "author deletes and receives an undo capability",
+      "request": { "method": "DELETE", "path": "/api/v1/annotations/ann-vt085-1", "actor": "author" },
+      "response": { "status": 200, "example": { "deletedId": "ann-vt085-1", "undoToken": "9f2c4e6a8b0d1f3a5c7e9b1d3f5a7c9e", "undoExpiresAt": "2026-11-16T03:00:30.000Z" } }
+    },
+    {
+      "id": "C02", "ac": "AC2", "given": "ANNOTATION_DELETED_BY_AUTHOR", "atMsAfterDelete": 10000, "description": "author restores inside the window",
+      "request": { "method": "POST", "path": "/api/v1/annotations/ann-vt085-1/restore", "actor": "author", "body": { "undoToken": "{{undoToken}}" } },
+      "response": { "status": 200, "expect": "SNAPSHOT_RESTORED_VERSION_PLUS_ONE" }
+    },
+    {
+      "id": "C03", "ac": "AC2", "given": "ANNOTATION_DELETED_BY_AUTHOR", "atMsAfterDelete": 10000, "description": "PROJECT_LEAD may undo someone else's delete",
+      "request": { "method": "POST", "path": "/api/v1/annotations/ann-vt085-1/restore", "actor": "lead", "body": { "undoToken": "{{undoToken}}" } },
+      "response": { "status": 200, "expect": "SNAPSHOT_RESTORED_VERSION_PLUS_ONE" }
+    },
+    {
+      "id": "C04", "ac": "AC4", "given": "ANNOTATION_DELETED_BY_AUTHOR", "atMsAfterDelete": 29999, "description": "last millisecond of the window still restores",
+      "request": { "method": "POST", "path": "/api/v1/annotations/ann-vt085-1/restore", "actor": "author", "body": { "undoToken": "{{undoToken}}" } },
+      "response": { "status": 200, "expect": "SNAPSHOT_RESTORED_VERSION_PLUS_ONE" }
+    },
+    {
+      "id": "C05", "ac": "AC4", "given": "ANNOTATION_DELETED_BY_AUTHOR", "atMsAfterDelete": 30000, "description": "now == undoExpiresAt is already expired",
+      "request": { "method": "POST", "path": "/api/v1/annotations/ann-vt085-1/restore", "actor": "author", "body": { "undoToken": "{{undoToken}}" } },
+      "response": { "status": 410, "errorCode": "UNDO_WINDOW_EXPIRED", "example": { "errorCode": "UNDO_WINDOW_EXPIRED", "message": "The undo window for this delete has closed." } }
+    },
+    {
+      "id": "C06", "ac": "AC3", "given": "ANNOTATION_DELETED_BY_AUTHOR", "atMsAfterDelete": 1000, "description": "no body at all",
+      "request": { "method": "POST", "path": "/api/v1/annotations/ann-vt085-1/restore", "actor": "author", "bodyIsAbsent": true },
+      "response": { "status": 400, "errorCode": "VALIDATION_FAILED", "tombstoneMustSurvive": true }
+    },
+    {
+      "id": "C07", "ac": "AC3", "given": "ANNOTATION_DELETED_BY_AUTHOR", "atMsAfterDelete": 1000, "description": "JSON null body",
+      "request": { "method": "POST", "path": "/api/v1/annotations/ann-vt085-1/restore", "actor": "author", "body": null },
+      "response": { "status": 400, "errorCode": "VALIDATION_FAILED", "tombstoneMustSurvive": true }
+    },
+    {
+      "id": "C08", "ac": "AC3", "given": "ANNOTATION_DELETED_BY_AUTHOR", "atMsAfterDelete": 1000, "description": "array body",
+      "request": { "method": "POST", "path": "/api/v1/annotations/ann-vt085-1/restore", "actor": "author", "body": [] },
+      "response": { "status": 400, "errorCode": "VALIDATION_FAILED", "tombstoneMustSurvive": true }
+    },
+    {
+      "id": "C09", "ac": "AC3", "given": "ANNOTATION_DELETED_BY_AUTHOR", "atMsAfterDelete": 1000, "description": "empty object (undoToken missing)",
+      "request": { "method": "POST", "path": "/api/v1/annotations/ann-vt085-1/restore", "actor": "author", "body": {} },
+      "response": { "status": 400, "errorCode": "VALIDATION_FAILED", "tombstoneMustSurvive": true }
+    },
+    {
+      "id": "C10", "ac": "AC3", "given": "ANNOTATION_DELETED_BY_AUTHOR", "atMsAfterDelete": 1000, "description": "empty string token",
+      "request": { "method": "POST", "path": "/api/v1/annotations/ann-vt085-1/restore", "actor": "author", "body": { "undoToken": "" } },
+      "response": { "status": 400, "errorCode": "VALIDATION_FAILED", "tombstoneMustSurvive": true }
+    },
+    {
+      "id": "C11", "ac": "AC3", "given": "ANNOTATION_DELETED_BY_AUTHOR", "atMsAfterDelete": 1000, "description": "whitespace-only token",
+      "request": { "method": "POST", "path": "/api/v1/annotations/ann-vt085-1/restore", "actor": "author", "body": { "undoToken": "   " } },
+      "response": { "status": 400, "errorCode": "VALIDATION_FAILED", "tombstoneMustSurvive": true }
+    },
+    {
+      "id": "C12", "ac": "AC3", "given": "ANNOTATION_DELETED_BY_AUTHOR", "atMsAfterDelete": 1000, "description": "non-string token",
+      "request": { "method": "POST", "path": "/api/v1/annotations/ann-vt085-1/restore", "actor": "author", "body": { "undoToken": 123 } },
+      "response": { "status": 400, "errorCode": "VALIDATION_FAILED", "tombstoneMustSurvive": true }
+    },
+    {
+      "id": "C13", "ac": "AC3", "given": "ANNOTATION_DELETED_BY_AUTHOR", "atMsAfterDelete": 1000, "description": "valid token padded with spaces (boundary: no silent trim)",
+      "request": { "method": "POST", "path": "/api/v1/annotations/ann-vt085-1/restore", "actor": "author", "body": { "undoToken": " {{undoToken}} " } },
+      "response": { "status": 400, "errorCode": "VALIDATION_FAILED", "tombstoneMustSurvive": true }
+    },
+    {
+      "id": "C14", "ac": "AC3", "given": "ANNOTATION_DELETED_BY_AUTHOR", "atMsAfterDelete": 1000, "description": "31 hex chars (length boundary)",
+      "request": { "method": "POST", "path": "/api/v1/annotations/ann-vt085-1/restore", "actor": "author", "body": { "undoToken": "0123456789abcdef0123456789abcde" } },
+      "response": { "status": 400, "errorCode": "VALIDATION_FAILED", "tombstoneMustSurvive": true }
+    },
+    {
+      "id": "C15", "ac": "AC4", "given": "ANNOTATION_DELETED_BY_AUTHOR", "atMsAfterDelete": 1000, "description": "well-formed but wrong token",
+      "request": { "method": "POST", "path": "/api/v1/annotations/ann-vt085-1/restore", "actor": "author", "body": { "undoToken": "00000000000000000000000000000000" } },
+      "response": { "status": 404, "errorCode": "UNDO_NOT_AVAILABLE", "tombstoneMustSurvive": true, "example": { "errorCode": "UNDO_NOT_AVAILABLE", "message": "Nothing to undo for this annotation." } }
+    },
+    {
+      "id": "C16", "ac": "AC4", "given": "ANNOTATION_DELETED_AND_RESTORED", "atMsAfterDelete": 2000, "description": "a token works only once",
+      "request": { "method": "POST", "path": "/api/v1/annotations/ann-vt085-1/restore", "actor": "author", "body": { "undoToken": "{{undoToken}}" } },
+      "response": { "status": 404, "errorCode": "UNDO_NOT_AVAILABLE" }
+    },
+    {
+      "id": "C17", "ac": "AC4", "given": "ANNOTATION_DELETED_BY_AUTHOR", "atMsAfterDelete": 1000, "description": "another reviewer holding the token is not allowed",
+      "request": { "method": "POST", "path": "/api/v1/annotations/ann-vt085-1/restore", "actor": "otherReviewer", "body": { "undoToken": "{{undoToken}}" } },
+      "response": { "status": 403, "errorCode": "FORBIDDEN_OPERATION", "tombstoneMustSurvive": true, "example": { "errorCode": "FORBIDDEN_OPERATION", "message": "Only the user who deleted the annotation or a PROJECT_LEAD can undo it." } }
+    },
+    {
+      "id": "C18", "ac": "AC4", "given": "ANNOTATION_EXISTS", "description": "restore on an annotation that was never deleted",
+      "request": { "method": "POST", "path": "/api/v1/annotations/ann-vt085-1/restore", "actor": "author", "body": { "undoToken": "00000000000000000000000000000000" } },
+      "response": { "status": 404, "errorCode": "UNDO_NOT_AVAILABLE" }
+    },
+    {
+      "id": "C19", "ac": "AC5", "given": "ANNOTATION_DELETED_THEN_ID_REOCCUPIED", "atMsAfterDelete": 3000, "description": "id re-created by import while deleted: never overwrite the live row",
+      "request": { "method": "POST", "path": "/api/v1/annotations/ann-vt085-1/restore", "actor": "author", "body": { "undoToken": "{{undoToken}}" } },
+      "response": { "status": 409, "errorCode": "RESTORE_ID_CONFLICT", "example": { "errorCode": "RESTORE_ID_CONFLICT", "message": "Another annotation now uses this id; restore would overwrite it." } }
+    },
+    {
+      "id": "C20", "ac": "AC5", "given": "ANNOTATION_DELETED_AND_REPOSITORY_WRITE_FAILS", "atMsAfterDelete": 3000, "description": "storage throws during restore: explicit error, no default data, tombstone kept",
+      "request": { "method": "POST", "path": "/api/v1/annotations/ann-vt085-1/restore", "actor": "author", "body": { "undoToken": "{{undoToken}}" } },
+      "response": { "status": 503, "errorCode": "RESTORE_FAILED", "tombstoneMustSurvive": true, "example": { "errorCode": "RESTORE_FAILED", "message": "Restore could not be saved. Nothing was changed; retry before the undo window closes." } }
+    }
+  ]
+}
