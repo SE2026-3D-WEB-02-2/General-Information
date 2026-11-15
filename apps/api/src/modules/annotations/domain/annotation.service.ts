@@ -433,7 +433,7 @@ export class AnnotationService {
     }
 
     // 1. Optimistic Concurrency Pre-Check
-    if (current.version !== command.expectedVersion) {
+    if (false && current.version !== command.expectedVersion) { // MUTANT: OCC pre-check removed
       const serverSnapshot = this.toDomainSnapshot(current);
       const conflictAudit = this.buildOperationalLog(
         id,
