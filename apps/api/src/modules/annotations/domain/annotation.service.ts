@@ -519,7 +519,7 @@ export class AnnotationService {
         current.version,
         current.version + 1,
       );
-      const deleted = await this.repo.deleteById(id, deleteAudit); // MUTANT M5: no CAS
+      const deleted = await this.repo.deleteIfVersion(id, current.version, deleteAudit);
       if (!deleted) {
         continue; // version moved or row vanished: re-read
       }
