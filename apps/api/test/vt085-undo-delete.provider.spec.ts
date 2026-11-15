@@ -12,7 +12,9 @@ import path from 'node:path';
 import { describe, it } from 'node:test';
 import type { AnnotationDomainSnapshot, ServerRealtimeEvent, UserSummary } from '@spriter/shared';
 import { SpriterApiApplication } from '../src/http/app-router.ts';
-import type { InternalDbAnnotationRecord } from '../src/modules/annotations/domain/ports.ts';
+import { InMemoryAnnotationRepository } from '../src/modules/annotations/adapters/in-memory.repository.ts';
+import { AnnotationService } from '../src/modules/annotations/domain/annotation.service.ts';
+import type { InternalDbAnnotationRecord, UndoTombstoneStorePort } from '../src/modules/annotations/domain/ports.ts';
 
 type ActorKey = 'author' | 'lead' | 'otherReviewer';
 interface Interaction {
@@ -289,6 +291,29 @@ describe('VT-085 provider — invariants outside the fixture', () => {
     assert.equal(codes.filter((c) => c === 404).length, 79);
     assert.equal(h.events.filter((e) => e.type === 'annotation:created').length, 1);
     assert.deepEqual(await h.listIds(), [SEED.id]);
+  });
+
+  it('TC-TOMB: if the undo store cannot save, the delete is rolled back — no undo token for a row that could not be restored', async () => {
+    // Added after mutant M4 (swallow tombstone-save failure) survived the first suite.
+    const repo = new InMemoryAnnotationRepository();
+    repo.seedRecord(toDbRecord(SEED));
+    const events: ServerRealtimeEvent[] = [];
+    const brokenStore: UndoTombstoneStorePort = {
+      save: async () => { throw new Error('undo store unavailable'); },
+      peek: async () => undefined,
+      claim: async () => undefined,
+    };
+    const service = new AnnotationService(
+      repo,
+      { now: () => new Date(contract.clockStart) },
+      { publishToModelRoom: (_m, e) => events.push(e) },
+      brokenStore,
+    );
+    await assert.rejects(service.deleteAnnotation(SEED.id, SEED.authorId, 'REVIEWER'), /undo store unavailable/);
+    const row = await repo.findById(SEED.id);
+    assert.ok(row, 'the row must be put back when its tombstone could not be stored');
+    assert.equal(row.comments.length, SEED.comments.length);
+    assert.equal(events.filter((e) => e.type === 'annotation:deleted').length, 0, 'no delete may be broadcast');
   });
 
   it('TC-ROUTE: an empty id segment (//restore) never reaches the restore handler', async () => {
