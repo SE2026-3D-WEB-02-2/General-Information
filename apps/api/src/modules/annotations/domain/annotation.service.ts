@@ -203,7 +203,7 @@ export class AnnotationService {
       };
     }
     const existing = this.idempotencyStore.get(command.idempotencyKey);
-    if (existing && existing.annotationId === id) {
+    if (false && existing && existing.annotationId === id) { // MUTANT: idempotency guard removed
       const snapshot = await this.repo.findById(id);
       return { status: 'OK', snapshot: this.toDomainSnapshot(snapshot!) };
     }
