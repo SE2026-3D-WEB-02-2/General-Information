@@ -24,7 +24,8 @@ Risk: race condition when two concurrent requests change the same annotation.
 ```bash
 npm install
 npm run verify                          # whole monorepo: architecture check + all suites
-npm run test:vt087                      # VT-087 suite, TC01–TC27
+npm run test:vt087                      # VT-087 suite, TC01–TC28
+node scripts/vt087-assumption-probe.mjs # prints observed behaviour for 7 assumptions (P1–P7)
 npm run test:vt087:load                 # 100 concurrent approves, in-process
 node scripts/vt087-http-load-test.mjs   # 100 concurrent approves over real HTTP, 5 rounds (ROUNDS=n to change)
 node --test --experimental-test-coverage --test-coverage-include='apps/api/src/**' apps/api/test/reviewer-approval.spec.ts
@@ -45,6 +46,8 @@ node --test --test-randomize --test-random-seed=7 apps/api/test/reviewer-approva
 | `835432e` | fix: one re-resolve guard for PATCH and approve | 25/25 pass |
 | `f739060` | TC26 (RED: reviewer resolves via PATCH) + TC27 | `evidence/tc26_red_at_f739060.log` |
 | `02dba21` | fix: reviewers resolve only through /approve; Stream A test 5 setup uses /approve | 27/27, verify 50/50 |
+| `cdacbfb` | TC28 (RED: audit actorId is undefined — test tokens used `id`, server reads `sub`) | `evidence/tc28_red.log` |
+| `a9ed076` | fix: test tokens use `sub`; TC23 and lead tokens use the real lead id | 28/28, verify 51/51 |
 
 ## Mutation experiment ("remove idempotency / concurrency guard")
 
