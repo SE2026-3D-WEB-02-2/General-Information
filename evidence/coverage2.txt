@@ -1,0 +1,80 @@
+▶ VT-087 Reviewer Approval — vertical slice
+  ✔ TC01 READ — reviewer can list annotations (200, data present) (29.5444ms)
+  ✔ TC02 APPROVE — valid reviewer approval transitions to RESOLVED (5.5996ms)
+  ✔ TC03 NO-EDIT — reviewer PATCH to position is FORBIDDEN (403) and data unchanged (8.7242ms)
+  ✔ TC04 NO-DELETE — reviewer DELETE is FORBIDDEN (403) (4.2112ms)
+  ✔ TC05 MEMBER — non-privileged role cannot approve (403) (0.5881ms)
+  ✔ TC06 UNAUTHORIZED — approve without a valid token is UNAUTHORIZED (401) (0.4894ms)
+  ✔ TC07 OLD-VERSION — stale-version approve is CONCURRENCY_CONFLICT (409), data untouched (1.8807ms)
+  ✔ TC08 CONCURRENT — two simultaneous approves leave exactly one resolved (10.1438ms)
+  ✔ TC09 IDEMPOTENT — re-submitting the same approve key has no second side effect (2.3645ms)
+  ✔ TC10 MISSING-KEY — approve without an Idempotency-Key is rejected (422), no state change (1.8901ms)
+  ✔ TC11 STORE-FAILURE — a failing store propagates and leaves no partial state (3.2197ms)
+  ✔ TC12 NOT-FOUND — approving a non-existent annotation returns 404 (0.9718ms)
+  ✔ TC13 MISSING-EXPECTED-VERSION — approve over HTTP without expectedVersion is 400 and leaves data unchanged (1.1341ms)
+  ✔ TC14 MEMBER-HTTP — non-privileged role over HTTP is rejected and leaves data unchanged (10.8423ms)
+  ✔ TC15 INVALID-STATE — approving an ARCHIVED annotation is not allowed (matches the shared policy source) (7.2019ms)
+  ✔ TC16 SAME-IDEMPOTENCY-KEY — same key for a DIFFERENT annotation: record actual behaviour (7.1026ms)
+  ✔ TC17 IDEMPOTENT-AUDIT — idempotent retry leaves exactly one approval audit entry (1.7752ms)
+  ✔ TC18 CONCURRENT-SAME-KEY — two concurrent approves with the same key and same version produce exactly one state change (3.9348ms)
+  ✔ TC19 UNIT canActorModifyAnnotation — reviewer may comment/transition but not archive/delete (1.925ms)
+  ✔ TC20 UNIT ALLOWED_TRANSITIONS — state machine matches the policy source (11.7432ms)
+✔ VT-087 Reviewer Approval — vertical slice (131.4008ms)
+ℹ tests 20
+ℹ suites 1
+ℹ pass 20
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1834.8253
+ℹ start of coverage report
+ℹ -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ℹ file                                  | line % | branch % | funcs % | uncovered lines
+ℹ -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ℹ apps                                  |        |          |         | 
+ℹ  api                                  |        |          |         | 
+ℹ   src                                 |        |          |         | 
+ℹ    http                               |        |          |         | 
+ℹ     app-router.ts                     |  75.31 |    57.14 |   71.43 | 59 95-96 102-103 105-109 111-113 115-116 118-119 121-122 133-138 142-146 151-154 158-163 180-186 191-192 197-202 235-239
+ℹ    modules                            |        |          |         | 
+ℹ     annotations                       |        |          |         | 
+ℹ      adapters                         |        |          |         | 
+ℹ       in-memory.repository.ts         |  67.97 |    75.00 |   50.00 | 32-33 45-46 48-50 56-60 70-75 93-99 102-110 121-127
+ℹ       log-purge.worker.ts             |  58.18 |   100.00 |   28.57 | 26-35 38-43 46-50 53-54
+ℹ       socket-realtime.gateway.ts      |  51.13 |    71.43 |   57.14 | 55-58 62-63 67-68 74-127 130-132
+ℹ      domain                           |        |          |         | 
+ℹ       annotation.service.ts           |  55.79 |    78.00 |   50.00 | 83-86 89-90 93-94 100-132 151-152 245-313 316-373 394-405 531-532 545-567 571-590 593-655
+ℹ       ports.ts                        | 100.00 |   100.00 |  100.00 | 
+ℹ      http                             |        |          |         | 
+ℹ       annotation.controller.ts        |  51.99 |    62.96 |   60.00 | 29-45 48-71 86-93 106-109 116-124 126-132 134-137 197-203 225-228 235-238 243-254 257-301
+ℹ     auth                              |        |          |         | 
+ℹ      adapters                         |        |          |         | 
+ℹ       in-memory-user.repository.ts    |  89.29 |   100.00 |   60.00 | 44-45 52-55
+ℹ      domain                           |        |          |         | 
+ℹ       auth.service.ts                 |  45.00 |    42.86 |   45.45 | 20-32 59-67 70-88 93-94 103-104 116-117 125-126 130-168 171-190 195-196
+ℹ       ports.ts                        | 100.00 |   100.00 |  100.00 | 
+ℹ      http                             |        |          |         | 
+ℹ       auth.controller.ts              |  48.54 |    80.00 |   42.86 | 16-17 20-38 41-52 55-63 90-100
+ℹ     models                            |        |          |         | 
+ℹ      adapters                         |        |          |         | 
+ℹ       s3-presigned-storage.adapter.ts |  57.94 |   100.00 |   44.44 | 24-41 44-57 90-91 94-95 98-106
+ℹ      domain                           |        |          |         | 
+ℹ       model.service.ts                |  25.60 |    60.00 |   28.57 | 37-56 59-120 123-154 157-167
+ℹ       ports.ts                        | 100.00 |   100.00 |  100.00 | 
+ℹ      http                             |        |          |         | 
+ℹ       model.controller.ts             |  38.10 |    57.14 |   50.00 | 31-39 45-66 69-90 93-104
+ℹ packages                              |        |          |         | 
+ℹ  shared                               |        |          |         | 
+ℹ   src                                 |        |          |         | 
+ℹ    contracts                          |        |          |         | 
+ℹ     api-contracts.ts                  |  82.99 |   100.00 |   50.00 | 245-294
+ℹ     realtime-contracts.ts             |  86.21 |   100.00 |    0.00 | 76-87
+ℹ     viewport-bridge.ts                |  82.54 |   100.00 |    0.00 | 53-63
+ℹ    domain                             |        |          |         | 
+ℹ     annotation-policy.ts              |  79.52 |    55.56 |   60.00 | 75-76 86-91 117-122 126-131 136-141 149-154 165-166
+ℹ    index.ts                           | 100.00 |   100.00 |  100.00 | 
+ℹ -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ℹ all files                             |  62.17 |    68.51 |   48.78 | 
+ℹ -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ℹ end of coverage report

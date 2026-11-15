@@ -1,0 +1,10 @@
+37207d3 Nils Nielsen <nilsyajima@gmail.com> docs(vt-087): correct final tip verify to 43/0 (T2 tests added)
+1fdfbeb Nils Nielsen <nilsyajima@gmail.com> docs(vt-087): fill evidence pack
+2ef22cd Nils Nielsen <nilsyajima@gmail.com> docs(vt-087): correct RED/GREEN counts to 9 (TC01–TC09) and commit table
+c934efd Nils Nielsen <nilsyajima@gmail.com> docs(vt-087): correct counts, mutation branches, commit table
+22dd10b Nils Nielsen <nilsyajima@gmail.com> test(vt-087): add T2 tests (TC13-TC20)
+924b8df Nils Nielsen <nilsyajima@gmail.com> docs(vt-087): add README + English report for BT3
+bccd603 Nils Nielsen <nilsyajima@gmail.com> test(vt-087): add TC12 not-found path + tighten req() types
+9123a4d Nils Nielsen <nilsyajima@gmail.com> test(vt-087): add TC10/TC11 risk tests + 100-task load harness
+eb2cd62 Nils Nielsen <nilsyajima@gmail.com> feat(vt-087): reviewer approval with OCC + idempotency guard
+3281ebe Nils Nielsen <nilsyajima@gmail.com> test(vt-087): add reviewer-approval vertical-slice tests (RED)
