@@ -56,7 +56,8 @@ export function canActorModifyAnnotation(
   if (action === 'COMMENT' || action === 'TRANSITION_STANDARD') {
     return Boolean(actor.id);
   }
-  return actor.role === 'PROJECT_LEAD' || actor.id === annotation.authorId;
+  // MUTANT G: ignore the role check - allow ANY authenticated actor to archive/delete
+  return Boolean(actor.id);
 }
 
 // ============================================================================
