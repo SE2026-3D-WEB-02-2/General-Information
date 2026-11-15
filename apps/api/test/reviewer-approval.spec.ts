@@ -486,4 +486,13 @@ describe('VT-087 Reviewer Approval — vertical slice', () => {
     assert.equal(reopen.statusCode, 200, 'reviewer may still reopen RESOLVED -> IN_PROGRESS');
     assert.equal((await app.annotationRepo.findById(id))!.version, 4);
   });
+  it('TC28 ACTOR-IDENTITY — the audit trail records who approved (token subject), not null', async () => {
+    const app = new SpriterApiApplication({ clock: { now: () => new Date(TS) } });
+    const id = seedAnnotation(app);
+    const res = await app.handleRequest(req('POST', `/api/v1/annotations/${id}/approve`, { idempotencyKey: 'k28', body: { expectedVersion: 1 } }));
+    assert.equal(res.statusCode, 200);
+    const updated = app.annotationRepo.getAuditLogs().filter((l: any) => l.outcome === 'UPDATED');
+    assert.equal(updated.length, 1);
+    assert.equal(updated[0].actorId, 'user-3d-huy', 'audit must name the reviewer from the token subject');
+  });
 });
