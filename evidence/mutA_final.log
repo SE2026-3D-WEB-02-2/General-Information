@@ -1,0 +1,53 @@
+
+> spriter-3d-review@0.1.0 test:vt087
+> node --test apps/api/test/reviewer-approval.spec.ts
+
+▶ VT-087 Reviewer Approval — vertical slice
+  ✔ TC01 READ — reviewer can list annotations (200, data present) (8.2488ms)
+  ✔ TC02 APPROVE — valid reviewer approval transitions to RESOLVED (2.1187ms)
+  ✔ TC03 NO-EDIT — reviewer PATCH to position is FORBIDDEN (403) and data unchanged (2.7521ms)
+  ✔ TC04 NO-DELETE — reviewer DELETE is FORBIDDEN (403) (1.6233ms)
+  ✔ TC05 MEMBER — non-privileged role cannot approve (403) (0.7615ms)
+  ✔ TC06 UNAUTHORIZED — approve without a valid token is UNAUTHORIZED (401) (0.5405ms)
+  ✔ TC07 OLD-VERSION — stale-version approve is CONCURRENCY_CONFLICT (409), data untouched (1.411ms)
+  ✔ TC08 CONCURRENT — two simultaneous approves leave exactly one resolved (2.1976ms)
+  ✖ TC09 IDEMPOTENT — re-submitting the same approve key has no second side effect (2.6545ms)
+  ✔ TC10 MISSING-KEY — approve without an Idempotency-Key is rejected (422), no state change (0.6247ms)
+  ✔ TC11 STORE-FAILURE — a failing store propagates and leaves no partial state (1.4882ms)
+  ✔ TC12 NOT-FOUND — approving a non-existent annotation returns 404 (1.0548ms)
+  ✔ TC13 MISSING-EXPECTED-VERSION — approve over HTTP without expectedVersion is 400 and leaves data unchanged (0.528ms)
+  ✔ TC14 MEMBER-HTTP — non-privileged role over HTTP is rejected and leaves data unchanged (0.5055ms)
+  ✔ TC15 INVALID-STATE — approving an ARCHIVED annotation is not allowed (matches the shared policy source) (0.3819ms)
+  ✔ TC16 SAME-IDEMPOTENCY-KEY — same key for a DIFFERENT annotation: record actual behaviour (1.0149ms)
+  ✔ TC17 IDEMPOTENT-AUDIT — idempotent retry leaves exactly one approval audit entry (0.9951ms)
+  ✔ TC18 CONCURRENT-SAME-KEY — two concurrent approves with the same key and same version produce exactly one state change (1.2859ms)
+  ✔ TC19 UNIT canActorModifyAnnotation — reviewer may comment/transition but not archive/delete (0.7124ms)
+  ✔ TC20 UNIT ALLOWED_TRANSITIONS — state machine matches the policy source (0.5199ms)
+✖ VT-087 Reviewer Approval — vertical slice (36.8748ms)
+ℹ tests 20
+ℹ suites 1
+ℹ pass 19
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 691.418
+
+✖ failing tests:
+
+test at apps\api\test\reviewer-approval.spec.ts:185:3
+✖ TC09 IDEMPOTENT — re-submitting the same approve key has no second side effect (2.6545ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  409 !== 200
+  
+      at TestContext.<anonymous> (file:///C:/Users/Admin/workspace/General-Information/apps/api/test/reviewer-approval.spec.ts:196:12)
+      at async Test.run (node:internal/test_runner/test:1313:7)
+      at async Suite.processPendingSubtests (node:internal/test_runner/test:897:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 409,
+    expected: 200,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }

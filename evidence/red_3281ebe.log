@@ -1,0 +1,117 @@
+▶ VT-087 Reviewer Approval — vertical slice
+  ✔ TC01 READ — reviewer can list annotations (200, data present) (33.6748ms)
+  ✖ TC02 APPROVE — valid reviewer approval transitions to RESOLVED (14.6325ms)
+  ✖ TC03 NO-EDIT — reviewer PATCH to position is FORBIDDEN (403) and data unchanged (3.828ms)
+  ✔ TC04 NO-DELETE — reviewer DELETE is FORBIDDEN (403) (4.5495ms)
+  ✖ TC05 MEMBER — non-privileged role cannot approve (403) (5.5902ms)
+  ✔ TC06 UNAUTHORIZED — approve without a valid token is UNAUTHORIZED (401) (1.7808ms)
+  ✖ TC07 OLD-VERSION — stale-version approve is CONCURRENCY_CONFLICT (409), data untouched (5.1004ms)
+  ✖ TC08 CONCURRENT — two simultaneous approves leave exactly one resolved (2.0453ms)
+  ✖ TC09 IDEMPOTENT — re-submitting the same approve key has no second side effect (1.3827ms)
+✖ VT-087 Reviewer Approval — vertical slice (85.0907ms)
+ℹ tests 9
+ℹ suites 1
+ℹ pass 3
+ℹ fail 6
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1703.0214
+
+✖ failing tests:
+
+test at apps\api\test\reviewer-approval.spec.ts:96:3
+✖ TC02 APPROVE — valid reviewer approval transitions to RESOLVED (14.6325ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  404 !== 200
+  
+      at TestContext.<anonymous> (file:///C:/c/Users/Admin/workspace/red_3281ebe/apps/api/test/reviewer-approval.spec.ts:102:12)
+      at async Test.run (node:internal/test_runner/test:1313:7)
+      at async Suite.processPendingSubtests (node:internal/test_runner/test:897:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 404,
+    expected: 200,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at apps\api\test\reviewer-approval.spec.ts:109:3
+✖ TC03 NO-EDIT — reviewer PATCH to position is FORBIDDEN (403) and data unchanged (3.828ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  200 !== 403
+  
+      at TestContext.<anonymous> (file:///C:/c/Users/Admin/workspace/red_3281ebe/apps/api/test/reviewer-approval.spec.ts:116:12)
+      at async Test.run (node:internal/test_runner/test:1313:7)
+      at async Suite.processPendingSubtests (node:internal/test_runner/test:897:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 200,
+    expected: 403,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at apps\api\test\reviewer-approval.spec.ts:130:3
+✖ TC05 MEMBER — non-privileged role cannot approve (403) (5.5902ms)
+  TypeError: service.approveAnnotation is not a function
+      at TestContext.<anonymous> (file:///C:/c/Users/Admin/workspace/red_3281ebe/apps/api/test/reviewer-approval.spec.ts:135:34)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1306:25)
+      at Suite.processPendingSubtests (node:internal/test_runner/test:897:18)
+      at Test.postRun (node:internal/test_runner/test:1447:19)
+      at Test.run (node:internal/test_runner/test:1372:12)
+      at async Suite.processPendingSubtests (node:internal/test_runner/test:897:7)
+
+test at apps\api\test\reviewer-approval.spec.ts:147:3
+✖ TC07 OLD-VERSION — stale-version approve is CONCURRENCY_CONFLICT (409), data untouched (5.1004ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  404 !== 409
+  
+      at TestContext.<anonymous> (file:///C:/c/Users/Admin/workspace/red_3281ebe/apps/api/test/reviewer-approval.spec.ts:156:12)
+      at async Test.run (node:internal/test_runner/test:1313:7)
+      at async Suite.processPendingSubtests (node:internal/test_runner/test:897:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 404,
+    expected: 409,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at apps\api\test\reviewer-approval.spec.ts:162:3
+✖ TC08 CONCURRENT — two simultaneous approves leave exactly one resolved (2.0453ms)
+  AssertionError [ERR_ASSERTION]: expected 1 success, got 0
+  
+  0 !== 1
+  
+      at TestContext.<anonymous> (file:///C:/c/Users/Admin/workspace/red_3281ebe/apps/api/test/reviewer-approval.spec.ts:175:12)
+      at async Test.run (node:internal/test_runner/test:1313:7)
+      at async Suite.processPendingSubtests (node:internal/test_runner/test:897:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 0,
+    expected: 1,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at apps\api\test\reviewer-approval.spec.ts:183:3
+✖ TC09 IDEMPOTENT — re-submitting the same approve key has no second side effect (1.3827ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  404 !== 200
+  
+      at TestContext.<anonymous> (file:///C:/c/Users/Admin/workspace/red_3281ebe/apps/api/test/reviewer-approval.spec.ts:189:12)
+      at async Test.run (node:internal/test_runner/test:1313:7)
+      at async Suite.processPendingSubtests (node:internal/test_runner/test:897:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 404,
+    expected: 200,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }

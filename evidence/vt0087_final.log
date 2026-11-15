@@ -1,0 +1,34 @@
+
+> spriter-3d-review@0.1.0 test:vt087
+> node --test apps/api/test/reviewer-approval.spec.ts
+
+▶ VT-087 Reviewer Approval — vertical slice
+  ✔ TC01 READ — reviewer can list annotations (200, data present) (3.6257ms)
+  ✔ TC02 APPROVE — valid reviewer approval transitions to RESOLVED (1.4898ms)
+  ✔ TC03 NO-EDIT — reviewer PATCH to position is FORBIDDEN (403) and data unchanged (1.492ms)
+  ✔ TC04 NO-DELETE — reviewer DELETE is FORBIDDEN (403) (1.0545ms)
+  ✔ TC05 MEMBER — non-privileged role cannot approve (403) (0.4176ms)
+  ✔ TC06 UNAUTHORIZED — approve without a valid token is UNAUTHORIZED (401) (0.5628ms)
+  ✔ TC07 OLD-VERSION — stale-version approve is CONCURRENCY_CONFLICT (409), data untouched (0.9327ms)
+  ✔ TC08 CONCURRENT — two simultaneous approves leave exactly one resolved (1.1267ms)
+  ✔ TC09 IDEMPOTENT — re-submitting the same approve key has no second side effect (1.0293ms)
+  ✔ TC10 MISSING-KEY — approve without an Idempotency-Key is rejected (422), no state change (0.5099ms)
+  ✔ TC11 STORE-FAILURE — a failing store propagates and leaves no partial state (0.6917ms)
+  ✔ TC12 NOT-FOUND — approving a non-existent annotation returns 404 (0.3633ms)
+  ✔ TC13 MISSING-EXPECTED-VERSION — approve over HTTP without expectedVersion is 400 and leaves data unchanged (0.2931ms)
+  ✔ TC14 MEMBER-HTTP — non-privileged role over HTTP is rejected and leaves data unchanged (0.2466ms)
+  ✔ TC15 INVALID-STATE — approving an ARCHIVED annotation is not allowed (matches the shared policy source) (0.268ms)
+  ✔ TC16 SAME-IDEMPOTENCY-KEY — same key for a DIFFERENT annotation: record actual behaviour (0.5494ms)
+  ✔ TC17 IDEMPOTENT-AUDIT — idempotent retry leaves exactly one approval audit entry (0.4194ms)
+  ✔ TC18 CONCURRENT-SAME-KEY — two concurrent approves with the same key and same version produce exactly one state change (0.4822ms)
+  ✔ TC19 UNIT canActorModifyAnnotation — reviewer may comment/transition but not archive/delete (0.1411ms)
+  ✔ TC20 UNIT ALLOWED_TRANSITIONS — state machine matches the policy source (0.1253ms)
+✔ VT-087 Reviewer Approval — vertical slice (18.5714ms)
+ℹ tests 20
+ℹ suites 1
+ℹ pass 20
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 375.3161

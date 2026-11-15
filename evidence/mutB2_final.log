@@ -1,0 +1,70 @@
+
+> spriter-3d-review@0.1.0 test:vt087
+> node --test apps/api/test/reviewer-approval.spec.ts
+
+▶ VT-087 Reviewer Approval — vertical slice
+  ✔ TC01 READ — reviewer can list annotations (200, data present) (6.7761ms)
+  ✔ TC02 APPROVE — valid reviewer approval transitions to RESOLVED (3.2179ms)
+  ✔ TC03 NO-EDIT — reviewer PATCH to position is FORBIDDEN (403) and data unchanged (2.5773ms)
+  ✔ TC04 NO-DELETE — reviewer DELETE is FORBIDDEN (403) (1.0334ms)
+  ✔ TC05 MEMBER — non-privileged role cannot approve (403) (0.345ms)
+  ✔ TC06 UNAUTHORIZED — approve without a valid token is UNAUTHORIZED (401) (0.427ms)
+  ✔ TC07 OLD-VERSION — stale-version approve is CONCURRENCY_CONFLICT (409), data untouched (1.3669ms)
+  ✖ TC08 CONCURRENT — two simultaneous approves leave exactly one resolved (3.3912ms)
+  ✔ TC09 IDEMPOTENT — re-submitting the same approve key has no second side effect (1.4863ms)
+  ✔ TC10 MISSING-KEY — approve without an Idempotency-Key is rejected (422), no state change (0.9992ms)
+  ✔ TC11 STORE-FAILURE — a failing store propagates and leaves no partial state (1.4683ms)
+  ✔ TC12 NOT-FOUND — approving a non-existent annotation returns 404 (0.7926ms)
+  ✔ TC13 MISSING-EXPECTED-VERSION — approve over HTTP without expectedVersion is 400 and leaves data unchanged (0.6685ms)
+  ✔ TC14 MEMBER-HTTP — non-privileged role over HTTP is rejected and leaves data unchanged (0.6079ms)
+  ✔ TC15 INVALID-STATE — approving an ARCHIVED annotation is not allowed (matches the shared policy source) (0.5078ms)
+  ✔ TC16 SAME-IDEMPOTENCY-KEY — same key for a DIFFERENT annotation: record actual behaviour (1.0649ms)
+  ✔ TC17 IDEMPOTENT-AUDIT — idempotent retry leaves exactly one approval audit entry (0.6439ms)
+  ✖ TC18 CONCURRENT-SAME-KEY — two concurrent approves with the same key and same version produce exactly one state change (1.044ms)
+  ✔ TC19 UNIT canActorModifyAnnotation — reviewer may comment/transition but not archive/delete (0.3182ms)
+  ✔ TC20 UNIT ALLOWED_TRANSITIONS — state machine matches the policy source (0.2557ms)
+✖ VT-087 Reviewer Approval — vertical slice (32.3522ms)
+ℹ tests 20
+ℹ suites 1
+ℹ pass 18
+ℹ fail 2
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 774.4824
+
+✖ failing tests:
+
+test at apps\api\test\reviewer-approval.spec.ts:164:3
+✖ TC08 CONCURRENT — two simultaneous approves leave exactly one resolved (3.3912ms)
+  AssertionError [ERR_ASSERTION]: expected 1 success, got 2
+  
+  2 !== 1
+  
+      at TestContext.<anonymous> (file:///C:/Users/Admin/workspace/General-Information/apps/api/test/reviewer-approval.spec.ts:177:12)
+      at async Test.run (node:internal/test_runner/test:1313:7)
+      at async Suite.processPendingSubtests (node:internal/test_runner/test:897:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 2,
+    expected: 1,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at apps\api\test\reviewer-approval.spec.ts:313:3
+✖ TC18 CONCURRENT-SAME-KEY — two concurrent approves with the same key and same version produce exactly one state change (1.044ms)
+  AssertionError [ERR_ASSERTION]: expected 1 success, got 2
+  
+  2 !== 1
+  
+      at TestContext.<anonymous> (file:///C:/Users/Admin/workspace/General-Information/apps/api/test/reviewer-approval.spec.ts:321:12)
+      at async Test.run (node:internal/test_runner/test:1313:7)
+      at async Suite.processPendingSubtests (node:internal/test_runner/test:897:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 2,
+    expected: 1,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }

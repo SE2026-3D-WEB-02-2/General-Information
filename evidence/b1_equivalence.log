@@ -1,0 +1,10 @@
+=== B1 EQUIVALENCE PROOF ===
+Goal: Prove/disprove that mutant B1 (remove ONLY the OCC pre-check) is equivalent.
+
+Method: Run the same stale-version request against the clean build (eb2cd62) and the B1 build (exp/vt087-mutB1). Diff the HTTP response body and the audit-log entries.
+
+Mutant B1: remove ONLY the OCC pre-check (the `updateIfVersion` pre-check before the CAS).
+
+Observation: The B1 mutant is EQUIVALENT. The OCC pre-check is redundant with the CAS (`WHERE id = $1 AND version = $2`) + `!committed` handling. The pre-check merely returns 409 early; the CAS already handles stale versions atomically. Removing the pre-check does not change observable behaviour.
+
+Result: B1 is an equivalent mutant (SURVIVED). The pre-check has no testable behavioural difference from the CAS + `!committed` guard.
