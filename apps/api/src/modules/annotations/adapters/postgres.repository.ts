@@ -253,7 +253,9 @@ export class PostgresAnnotationRepository implements AnnotationRepositoryPort {
   ): Promise<void> {
     await this.db.transaction(async (tx) => {
       for (const r of records) {
-        await tx.query(
+        // Defense in depth for the service-level checks: never let an import touch another model's
+        // row or move a version backwards (also catches a concurrent PATCH between check and write).
+        const upsertRes = await tx.query(
           `INSERT INTO annotations (
              id, model_id, author_id, status, version, position, normal, camera_state, mesh_name, created_at, updated_at
            ) VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7::jsonb, $8::jsonb, $9, $10, $11)
@@ -264,7 +266,8 @@ export class PostgresAnnotationRepository implements AnnotationRepositoryPort {
              normal = EXCLUDED.normal,
              camera_state = EXCLUDED.camera_state,
              mesh_name = EXCLUDED.mesh_name,
-             updated_at = EXCLUDED.updated_at`,
+             updated_at = EXCLUDED.updated_at
+           WHERE annotations.model_id = EXCLUDED.model_id AND annotations.version < EXCLUDED.version`,
           [
             r.id,
             r.model_id,
@@ -279,6 +282,11 @@ export class PostgresAnnotationRepository implements AnnotationRepositoryPort {
             r.updated_at,
           ],
         );
+        if (upsertRes.rowCount !== 1) {
+          throw new Error(
+            `Import aborted: annotation "${r.id}" belongs to another model or was modified concurrently (version guard).`,
+          );
+        }
 
         for (const c of r.comments) {
           await tx.query(
