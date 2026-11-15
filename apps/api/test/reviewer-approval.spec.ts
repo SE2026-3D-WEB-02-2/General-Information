@@ -449,4 +449,15 @@ describe('VT-087 Reviewer Approval — vertical slice', () => {
       await new Promise((resolve) => server.close(resolve));
     }
   });
+  it('TC25 PATCH-RE-RESOLVE — PATCH status RESOLVED on an already-RESOLVED annotation is rejected (422) and does not bump the version', async () => {
+    const app = new SpriterApiApplication({ clock: { now: () => new Date(TS) } });
+    const id = seedAnnotation(app, { status: 'RESOLVED', version: 2 });
+    for (const auth of [REVIEWER, signToken({ id: 'user-lead', email: 'lead@spriter.local', name: 'Lead', role: 'PROJECT_LEAD' })]) {
+      const res = await app.handleRequest(req('PATCH', `/api/v1/annotations/${id}`, { auth, body: { expectedVersion: 2, status: 'RESOLVED' } }));
+      assert.equal(res.statusCode, 422, 'RESOLVED -> RESOLVED via PATCH must be rejected for every role');
+    }
+    const after = await app.annotationRepo.findById(id);
+    assert.equal(after!.version, 2, 'version must stay 2: a same-status PATCH is not a transition');
+    assert.equal(after!.status, 'RESOLVED');
+  });
 });
