@@ -81,7 +81,7 @@ export class InMemoryAnnotationRepository implements AnnotationRepositoryPort {
     audit: OperationalAuditLogEntry,
   ): Promise<boolean> {
     const current = this.dbStore.get(id);
-    if (!current || current.version !== expectedVersion) {
+    if (!current) { // MUTANT: CAS version compare removed
       return false;
     }
     this.dbStore.set(id, structuredClone(updatedRow));
