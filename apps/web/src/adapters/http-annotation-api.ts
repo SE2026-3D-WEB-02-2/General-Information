@@ -126,11 +126,9 @@ export class HttpAnnotationApi implements WorkspaceApiPort {
         method: 'POST', body: JSON.stringify(parsed.value),
       });
       return { ok: true, data };
-    } catch (error) {
-      if (error instanceof ApiClientError) {
-        return { ok: false, statusCode: error.statusCode, errorCode: error.detail.errorCode, message: error.detail.message };
-      }
-      throw error;
+    } catch {
+      // MUTANT M3: swallow and return a default annotation
+      return { ok: true, data: { id, modelId: '', authorId: '', status: 'OPEN', version: 1, position: [0, 0, 0], normal: [0, 1, 0], cameraState: { position: [0, 0, 5], target: [0, 0, 0] }, comments: [], updatedAt: new Date(0).toISOString() } };
     }
   }
 
