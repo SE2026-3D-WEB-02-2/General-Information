@@ -533,8 +533,10 @@ export class AnnotationService {
       };
       try {
         await this.tombstones.save(tombstone);
-      } catch {
-        // MUTANT M4: swallow; the caller still receives a (now useless) undo token
+      } catch (error) {
+        // Never leave a delete without its undo: put the row back and surface the error.
+        await this.repo.insert(current, this.buildOperationalLog(id, actorId, 'CREATED', current.version, current.version));
+        throw error;
       }
 
       this.realtime.publishToModelRoom(current.model_id, {
