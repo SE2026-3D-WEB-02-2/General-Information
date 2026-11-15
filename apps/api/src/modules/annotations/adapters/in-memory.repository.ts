@@ -98,6 +98,20 @@ export class InMemoryAnnotationRepository implements AnnotationRepositoryPort {
     return true;
   }
 
+  public async deleteIfVersion(
+    id: string,
+    expectedVersion: number,
+    audit: OperationalAuditLogEntry,
+  ): Promise<boolean> {
+    const current = this.dbStore.get(id);
+    if (!current || current.version !== expectedVersion) {
+      return false;
+    }
+    this.dbStore.delete(id);
+    this.operationalLogs.push(audit);
+    return true;
+  }
+
   public async bulkReplaceOrInsert(
     _modelId: string,
     records: InternalDbAnnotationRecord[],

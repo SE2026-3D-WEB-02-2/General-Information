@@ -7,6 +7,7 @@ import {
   type ListAnnotationsQueryDto,
   type UserRole,
   type Vec3,
+  parseRestoreAnnotationRequest,
 } from '@spriter/shared';
 import { AnnotationService } from '../domain/annotation.service.ts';
 
@@ -158,10 +159,77 @@ export class AnnotationController {
           statusCode: 403 as const,
           body: { errorCode: 'FORBIDDEN_OPERATION', message: result.message },
         };
+      case 'CONCURRENCY_CONFLICT':
+        return {
+          statusCode: 409 as const,
+          body: {
+            errorCode: 'CONCURRENCY_CONFLICT',
+            message: 'Annotation kept changing while it was being deleted. Reload and try again.',
+          },
+        };
       case 'OK':
         return {
           statusCode: 200 as const,
-          body: { deletedId: result.deletedId },
+          body: {
+            deletedId: result.deletedId,
+            undoToken: result.undoToken,
+            undoExpiresAt: result.undoExpiresAt,
+          },
+        };
+    }
+  }
+
+  /** [VT-085] POST /api/v1/annotations/:id/restore — body is untrusted until parsed by the shared contract. */
+  public async restoreAnnotation(req: {
+    params: { id: string };
+    actorId: string;
+    actorRole?: UserRole;
+    body: unknown;
+  }) {
+    const parsed = parseRestoreAnnotationRequest(req.body);
+    if (!parsed.ok) {
+      return {
+        statusCode: 400 as const,
+        body: { errorCode: parsed.errorCode, message: parsed.message },
+      };
+    }
+
+    const result = await this.annotationService.restoreAnnotation(
+      req.params.id,
+      req.actorId,
+      req.actorRole ?? 'REVIEWER',
+      parsed.value,
+    );
+    switch (result.status) {
+      case 'OK':
+        return { statusCode: 200 as const, body: result.snapshot };
+      case 'UNDO_NOT_AVAILABLE':
+        return {
+          statusCode: 404 as const,
+          body: { errorCode: 'UNDO_NOT_AVAILABLE', message: 'Nothing to undo for this annotation.' },
+        };
+      case 'FORBIDDEN':
+        return {
+          statusCode: 403 as const,
+          body: { errorCode: 'FORBIDDEN_OPERATION', message: result.message },
+        };
+      case 'UNDO_WINDOW_EXPIRED':
+        return {
+          statusCode: 410 as const,
+          body: { errorCode: 'UNDO_WINDOW_EXPIRED', message: 'The undo window for this delete has closed.' },
+        };
+      case 'RESTORE_ID_CONFLICT':
+        return {
+          statusCode: 409 as const,
+          body: {
+            errorCode: 'RESTORE_ID_CONFLICT',
+            message: 'Another annotation now uses this id; restore would overwrite it.',
+          },
+        };
+      case 'RESTORE_FAILED':
+        return {
+          statusCode: 503 as const,
+          body: { errorCode: 'RESTORE_FAILED', message: result.message },
         };
     }
   }

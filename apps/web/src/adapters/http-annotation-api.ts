@@ -6,6 +6,7 @@ import type {
   ConfirmModelUploadDto,
   CreateAnnotationRequestDto,
   CreateCommentRequestDto,
+  DeleteAnnotationResponseDto,
   ExportFileV1,
   ImportAnnotationsRequestDto,
   ImportAnnotationsResponseDto,
@@ -18,6 +19,7 @@ import type {
   RegisterRequestDto,
   RequestModelUploadUrlDto,
 } from '@spriter/shared';
+import { checkDeleteAnnotationResponse, parseRestoreAnnotationRequest } from '@spriter/shared';
 import type { WorkspaceApiPort } from '../features/annotations/workspace-ports.ts';
 
 export class ApiClientError extends Error {
@@ -30,6 +32,11 @@ export class ApiClientError extends Error {
     this.detail = detail;
   }
 }
+
+/** [VT-085] Result of an undo attempt: either the server's restored snapshot or the server's error, never a guess. */
+export type RestoreAnnotationResult =
+  | { ok: true; data: AnnotationDomainSnapshot }
+  | { ok: false; statusCode: number; errorCode: string; message: string };
 
 export class HttpAnnotationApi implements WorkspaceApiPort {
   private token: string | null = null;
@@ -97,6 +104,31 @@ export class HttpAnnotationApi implements WorkspaceApiPort {
           errorCode: error.detail.errorCode,
           serverSnapshot: error.detail.serverSnapshot,
         };
+      }
+      throw error;
+    }
+  }
+
+  /** [VT-085] DELETE returns an undo capability; a response that breaks the contract is an error, not a partial success. */
+  async deleteAnnotation(id: string): Promise<DeleteAnnotationResponseDto> {
+    const body = await this.request<unknown>(`/api/v1/annotations/${encodeURIComponent(id)}`, { method: 'DELETE' });
+    const problems = checkDeleteAnnotationResponse(body);
+    if (problems.length > 0) throw new Error(`DELETE response violates undo contract: ${problems.join('; ')}`);
+    return body as DeleteAnnotationResponseDto;
+  }
+
+  /** [VT-085] Undo a delete. Empty/blank/malformed tokens are rejected locally; network errors propagate. */
+  async restoreAnnotation(id: string, undoToken: string): Promise<RestoreAnnotationResult> {
+    const parsed = parseRestoreAnnotationRequest({ undoToken });
+    if (!parsed.ok) return { ok: false, statusCode: 400, errorCode: parsed.errorCode, message: parsed.message };
+    try {
+      const data = await this.request<AnnotationDomainSnapshot>(`/api/v1/annotations/${encodeURIComponent(id)}/restore`, {
+        method: 'POST', body: JSON.stringify(parsed.value),
+      });
+      return { ok: true, data };
+    } catch (error) {
+      if (error instanceof ApiClientError) {
+        return { ok: false, statusCode: error.statusCode, errorCode: error.detail.errorCode, message: error.detail.message };
       }
       throw error;
     }
