@@ -207,20 +207,6 @@ export class AnnotationService {
       const snapshot = await this.repo.findById(id);
       return { status: 'OK', snapshot: this.toDomainSnapshot(snapshot!) };
     }
-    // Double-approval guard (TC21): a current-version approve of an already-RESOLVED
-    // annotation with a NEW key must not bump the version. Stale versions and missing
-    // records fall through so updateWithConcurrencyControl still returns 409 / 404.
-    const current = await this.repo.findById(id);
-    if (current && current.version === command.expectedVersion && current.status === 'RESOLVED') {
-      await this.repo.appendAuditLog(
-        this.buildOperationalLog(id, actorId, 'INVARIANT_VIOLATION', command.expectedVersion, current.version),
-      );
-      return {
-        status: 'INVARIANT_VIOLATED',
-        reasonCode: 'INVARIANT_VIOLATED',
-        message: 'Already resolved; cannot re-approve.',
-      };
-    }
     const result = await this.updateWithConcurrencyControl(
       id,
       actorId,
@@ -447,6 +433,20 @@ export class AnnotationService {
         status: 'CONCURRENCY_CONFLICT',
         currentVersion: current.version,
         serverSnapshot,
+      };
+    }
+
+    // 1b. Re-resolve guard (TC21 approve, TC25 PATCH): RESOLVED -> RESOLVED is not a
+    // transition. The shared policy skips same-status patches, which would otherwise
+    // bump the version a second time. Runs after the OCC check so stale requests stay 409.
+    if (command.status === 'RESOLVED' && current.status === 'RESOLVED') {
+      await this.repo.appendAuditLog(
+        this.buildOperationalLog(id, actorId, 'INVARIANT_VIOLATION', command.expectedVersion, current.version),
+      );
+      return {
+        status: 'INVARIANT_VIOLATED',
+        reasonCode: 'INVARIANT_VIOLATED',
+        message: 'Already resolved; cannot resolve again.',
       };
     }
 
