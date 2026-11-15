@@ -1,38 +1,41 @@
 🚀 Spriter Backend API listening on http://localhost:0
 ▶ VT-087 Reviewer Approval — vertical slice
-  ✔ TC01 READ — reviewer can list annotations (200, data present) (5.362ms)
-  ✔ TC02 APPROVE — valid reviewer approval transitions to RESOLVED (1.9661ms)
-  ✔ TC03 NO-EDIT — reviewer PATCH to position is FORBIDDEN (403) and data unchanged (1.5503ms)
-  ✔ TC04 NO-DELETE — reviewer DELETE is FORBIDDEN (403) (1.0097ms)
-  ✔ TC05 MEMBER — non-privileged role cannot approve (403) (0.4129ms)
-  ✔ TC06 UNAUTHORIZED — approve without a valid token is UNAUTHORIZED (401) (0.548ms)
-  ✔ TC07 OLD-VERSION — stale-version approve is CONCURRENCY_CONFLICT (409), data untouched (0.8528ms)
-  ✔ TC08 CONCURRENT — two simultaneous approves leave exactly one resolved (0.868ms)
-  ✔ TC09 IDEMPOTENT — re-submitting the same approve key has no second side effect (0.5244ms)
-  ✔ TC10 MISSING-KEY — approve without an Idempotency-Key is rejected (422), no state change (0.3248ms)
-  ✔ TC11 STORE-FAILURE — a failing store propagates and leaves no partial state (0.7806ms)
-  ✔ TC12 NOT-FOUND — approving a non-existent annotation returns 404 (0.2534ms)
-  ✔ TC13 MISSING-EXPECTED-VERSION — approve over HTTP without expectedVersion is 400 and leaves data unchanged (0.2607ms)
-  ✔ TC14 MEMBER-HTTP — non-privileged role over HTTP is rejected and leaves data unchanged (0.2743ms)
-  ✔ TC15 INVALID-STATE — approving an ARCHIVED annotation is not allowed (matches the shared policy source) (0.2406ms)
-  ✔ TC16 SAME-IDEMPOTENCY-KEY — same key for a DIFFERENT annotation: record actual behaviour (0.5065ms)
-  ✔ TC17 IDEMPOTENT-AUDIT — idempotent retry leaves exactly one approval audit entry (0.4799ms)
-  ✔ TC18 CONCURRENT-SAME-KEY — two concurrent approves with the same key and same version produce exactly one state change (0.5689ms)
-  ✔ TC19 UNIT canActorModifyAnnotation — reviewer may comment/transition but not archive/delete (0.1598ms)
-  ✔ TC20 UNIT ALLOWED_TRANSITIONS — state machine matches the policy source (0.1349ms)
-  ✔ TC21 APPROVE-RESOLVED — approving an already-RESOLVED annotation is INVARIANT_VIOLATED (0.3761ms)
-  ✔ TC22 B1 KILL — stale-version approval on ARCHIVED annotation (0.2953ms)
-  ✔ TC23 PATCH-UNCHANGED-STATUS-PLUS-POSITION - PATCH with unchanged status and position change on non-resolved annotation still returns 200 (0.461ms)
-  ✔ TC24 HTTP-IDEMPOTENCY-HEADER — real HTTP server forwards Idempotency-Key so approve works end-to-end (60.1626ms)
-✔ VT-087 Reviewer Approval — vertical slice (80.7809ms)
-ℹ tests 24
+  ✔ TC01 READ — reviewer can list annotations (200, data present) (6.2267ms)
+  ✔ TC02 APPROVE — valid reviewer approval transitions to RESOLVED (5.3295ms)
+  ✔ TC03 NO-EDIT — reviewer PATCH to position is FORBIDDEN (403) and data unchanged (2.7668ms)
+  ✔ TC04 NO-DELETE — reviewer DELETE is FORBIDDEN (403) (1.2362ms)
+  ✔ TC05 MEMBER — non-privileged role cannot approve (403) (0.4319ms)
+  ✔ TC06 UNAUTHORIZED — approve without a valid token is UNAUTHORIZED (401) (1.0841ms)
+  ✔ TC07 OLD-VERSION — stale-version approve is CONCURRENCY_CONFLICT (409), data untouched (1.8937ms)
+  ✔ TC08 CONCURRENT — two simultaneous approves leave exactly one resolved (1.3103ms)
+  ✔ TC09 IDEMPOTENT — re-submitting the same approve key has no second side effect (0.6832ms)
+  ✔ TC10 MISSING-KEY — approve without an Idempotency-Key is rejected (422), no state change (0.3781ms)
+  ✔ TC11 STORE-FAILURE — a failing store propagates and leaves no partial state (1.1099ms)
+  ✔ TC12 NOT-FOUND — approving a non-existent annotation returns 404 (0.5089ms)
+  ✔ TC13 MISSING-EXPECTED-VERSION — approve over HTTP without expectedVersion is 400 and leaves data unchanged (0.548ms)
+  ✔ TC14 MEMBER-HTTP — non-privileged role over HTTP is rejected and leaves data unchanged (0.5954ms)
+  ✔ TC15 INVALID-STATE — approving an ARCHIVED annotation is not allowed (matches the shared policy source) (0.3307ms)
+  ✔ TC16 SAME-IDEMPOTENCY-KEY — same key for a DIFFERENT annotation: record actual behaviour (0.6251ms)
+  ✔ TC17 IDEMPOTENT-AUDIT — idempotent retry leaves exactly one approval audit entry (0.4996ms)
+  ✔ TC18 CONCURRENT-SAME-KEY — two concurrent approves with the same key and same version produce exactly one state change (0.6011ms)
+  ✔ TC19 UNIT canActorModifyAnnotation — reviewer may comment/transition but not archive/delete (0.1895ms)
+  ✔ TC20 UNIT ALLOWED_TRANSITIONS — state machine matches the policy source (0.178ms)
+  ✔ TC21 APPROVE-RESOLVED — approving an already-RESOLVED annotation is INVARIANT_VIOLATED (0.3936ms)
+  ✔ TC22 B1 KILL — stale-version approval on ARCHIVED annotation (0.3096ms)
+  ✔ TC23 PATCH-UNCHANGED-STATUS-PLUS-POSITION - PATCH with unchanged status and position change on non-resolved annotation still returns 200 (0.4523ms)
+  ✔ TC24 HTTP-IDEMPOTENCY-HEADER — real HTTP server forwards Idempotency-Key so approve works end-to-end (61.1948ms)
+  ✔ TC25 PATCH-RE-RESOLVE — PATCH status RESOLVED on an already-RESOLVED annotation is rejected (422) and does not bump the version (0.6761ms)
+  ✔ TC26 PATCH-BYPASS — a REVIEWER cannot resolve via PATCH (403, unchanged); RESOLVED goes through /approve (0.4513ms)
+  ✔ TC27 PATCH-NOT-OVER-BLOCKED — reviewer keeps OPEN<->IN_PROGRESS and reopen; PROJECT_LEAD may still resolve via PATCH (0.6989ms)
+✔ VT-087 Reviewer Approval — vertical slice (97.0366ms)
+ℹ tests 27
 ℹ suites 1
-ℹ pass 24
+ℹ pass 27
 ℹ fail 0
 ℹ cancelled 0
 ℹ skipped 0
 ℹ todo 0
-ℹ duration_ms 523.6615
+ℹ duration_ms 683.6807
 ℹ start of coverage report
 ℹ -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 ℹ file                                  | line % | branch % | funcs % | uncovered lines
@@ -49,10 +52,10 @@
 ℹ       log-purge.worker.ts             |  58.18 |   100.00 |   28.57 | 26-35 38-43 46-50 53-54
 ℹ       socket-realtime.gateway.ts      |  51.13 |    71.43 |   57.14 | 55-58 62-63 67-68 74-127 130-132
 ℹ      domain                           |        |          |         | 
-ℹ       annotation.service.ts           |  56.72 |    80.00 |   50.00 | 83-86 89-90 93-94 100-132 151-152 259-327 330-387 408-419 545-546 559-581 585-604 607-669
+ℹ       annotation.service.ts           |  57.54 |    81.03 |   50.00 | 83-86 89-90 93-94 100-132 151-152 246-314 317-374 397-408 558-559 572-594 598-617 620-682
 ℹ       ports.ts                        | 100.00 |   100.00 |  100.00 | 
 ℹ      http                             |        |          |         | 
-ℹ       annotation.controller.ts        |  53.31 |    67.86 |   60.00 | 29-45 48-71 86-93 106-109 116-124 126-132 197-203 225-228 235-238 243-254 257-301
+ℹ       annotation.controller.ts        |  55.63 |    71.43 |   60.00 | 29-45 48-71 86-93 106-109 116-124 197-203 225-228 235-238 243-254 257-301
 ℹ     auth                              |        |          |         | 
 ℹ      adapters                         |        |          |         | 
 ℹ       in-memory-user.repository.ts    |  89.29 |   100.00 |   60.00 | 44-45 52-55
@@ -71,6 +74,6 @@
 ℹ       model.controller.ts             |  38.10 |    77.78 |   50.00 | 31-39 45-66 69-90 93-104
 ℹ    server.ts                          |  77.08 |    52.00 |  100.00 | 35-43 52-60 66-67 95-96
 ℹ -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-ℹ all files                             |  58.09 |    69.39 |   51.69 | 
+ℹ all files                             |  58.59 |    70.16 |   51.69 | 
 ℹ -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 ℹ end of coverage report

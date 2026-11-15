@@ -13,7 +13,10 @@ Risk: race condition when two concurrent requests change the same annotation.
 - RBAC gate + reviewer content gate (a `REVIEWER` cannot change `position` / `normal` / `cameraState`, cannot delete).
 - Idempotency guard (same key → stored outcome, no second version bump).
 - Concurrency guard: OCC pre-check + atomic compare-and-swap (`updateIfVersion`) → exactly one winner, others 409.
-- Double-approval guard: a RESOLVED annotation cannot be re-approved with a new key (422, no version bump).
+- Re-resolve guard: RESOLVED -> RESOLVED is rejected on both PATCH and approve (422, no version bump).
+- Approve-only rule: a `REVIEWER` reaches `RESOLVED` only through `/approve` (PATCH -> RESOLVED is 403), so the
+  Idempotency-Key guarantees cannot be bypassed. OPEN <-> IN_PROGRESS, reopen and `PROJECT_LEAD` PATCH are unchanged.
+  **Web impact:** the RESOLVED button in `CollaborationWorkspace` must call `/approve` for reviewers (not done in this branch).
 - `server.ts` forwards the `Idempotency-Key` header and allows it in CORS (without it, approve over real HTTP was always 422).
 
 ## Run
@@ -21,7 +24,7 @@ Risk: race condition when two concurrent requests change the same annotation.
 ```bash
 npm install
 npm run verify                          # whole monorepo: architecture check + all suites
-npm run test:vt087                      # VT-087 suite, TC01–TC24
+npm run test:vt087                      # VT-087 suite, TC01–TC27
 npm run test:vt087:load                 # 100 concurrent approves, in-process
 node scripts/vt087-http-load-test.mjs   # 100 concurrent approves over real HTTP, 5 rounds (ROUNDS=n to change)
 node --test --experimental-test-coverage --test-coverage-include='apps/api/src/**' apps/api/test/reviewer-approval.spec.ts
@@ -38,6 +41,10 @@ node --test --test-randomize --test-random-seed=7 apps/api/test/reviewer-approva
 | `9123a4d`, `bccd603`, `22dd10b` | TC10–TC20, in-process load harness | 20/20 pass |
 | `c9f4914` | TC21–TC24 (RED: double approve, HTTP header) | `evidence/tc21_red.log`, `evidence/tc24_red.log` |
 | `aa0edf0` | fix: RESOLVED guard + forward Idempotency-Key | 24/24 pass |
+| `344ea7a` | TC25 (RED: PATCH RESOLVED->RESOLVED bumps version) | `evidence/tc25_red.log` |
+| `835432e` | fix: one re-resolve guard for PATCH and approve | 25/25 pass |
+| `f739060` | TC26 (RED: reviewer resolves via PATCH) + TC27 | `evidence/tc26_red_at_f739060.log` |
+| `02dba21` | fix: reviewers resolve only through /approve; Stream A test 5 setup uses /approve | 27/27, verify 50/50 |
 
 ## Mutation experiment ("remove idempotency / concurrency guard")
 
@@ -55,6 +62,10 @@ git switch individual/vt-087-reviewer-approval
 ```
 
 Older mutants from the first iteration remain on `exp/vt087-mut{A,B,B1,B2,C,D,E,F,G}`.
+
+Re-run on tip `02dba21` (applied to the working tree, then reverted; logs `evidence/mut_tip_*.log`):
+idem → TC09, TC24 · occ → TC07, TC08, TC18, TC22 · both → 6 tests · approve-only gate removed → TC25, TC26 ·
+re-resolve guard removed → TC21, TC25. All killed.
 
 ## Evidence (`evidence/`)
 

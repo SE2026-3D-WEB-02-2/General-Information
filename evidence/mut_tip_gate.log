@@ -1,0 +1,80 @@
+
+> spriter-3d-review@0.1.0 test:vt087
+> node --test apps/api/test/reviewer-approval.spec.ts
+
+🚀 Spriter Backend API listening on http://localhost:0
+▶ VT-087 Reviewer Approval — vertical slice
+  ✔ TC01 READ — reviewer can list annotations (200, data present) (10.0128ms)
+  ✔ TC02 APPROVE — valid reviewer approval transitions to RESOLVED (4.4584ms)
+  ✔ TC03 NO-EDIT — reviewer PATCH to position is FORBIDDEN (403) and data unchanged (2.8502ms)
+  ✔ TC04 NO-DELETE — reviewer DELETE is FORBIDDEN (403) (1.9685ms)
+  ✔ TC05 MEMBER — non-privileged role cannot approve (403) (1.5524ms)
+  ✔ TC06 UNAUTHORIZED — approve without a valid token is UNAUTHORIZED (401) (0.8916ms)
+  ✔ TC07 OLD-VERSION — stale-version approve is CONCURRENCY_CONFLICT (409), data untouched (2.3714ms)
+  ✔ TC08 CONCURRENT — two simultaneous approves leave exactly one resolved (2.0463ms)
+  ✔ TC09 IDEMPOTENT — re-submitting the same approve key has no second side effect (1.8426ms)
+  ✔ TC10 MISSING-KEY — approve without an Idempotency-Key is rejected (422), no state change (1.7104ms)
+  ✔ TC11 STORE-FAILURE — a failing store propagates and leaves no partial state (3.1504ms)
+  ✔ TC12 NOT-FOUND — approving a non-existent annotation returns 404 (0.6919ms)
+  ✔ TC13 MISSING-EXPECTED-VERSION — approve over HTTP without expectedVersion is 400 and leaves data unchanged (0.7123ms)
+  ✔ TC14 MEMBER-HTTP — non-privileged role over HTTP is rejected and leaves data unchanged (0.8504ms)
+  ✔ TC15 INVALID-STATE — approving an ARCHIVED annotation is not allowed (matches the shared policy source) (1.3062ms)
+  ✔ TC16 SAME-IDEMPOTENCY-KEY — same key for a DIFFERENT annotation: record actual behaviour (1.9316ms)
+  ✔ TC17 IDEMPOTENT-AUDIT — idempotent retry leaves exactly one approval audit entry (0.8207ms)
+  ✔ TC18 CONCURRENT-SAME-KEY — two concurrent approves with the same key and same version produce exactly one state change (0.7572ms)
+  ✔ TC19 UNIT canActorModifyAnnotation — reviewer may comment/transition but not archive/delete (0.1854ms)
+  ✔ TC20 UNIT ALLOWED_TRANSITIONS — state machine matches the policy source (0.1798ms)
+  ✔ TC21 APPROVE-RESOLVED — approving an already-RESOLVED annotation is INVARIANT_VIOLATED (0.5081ms)
+  ✔ TC22 B1 KILL — stale-version approval on ARCHIVED annotation (0.5877ms)
+  ✔ TC23 PATCH-UNCHANGED-STATUS-PLUS-POSITION - PATCH with unchanged status and position change on non-resolved annotation still returns 200 (1.2221ms)
+  ✔ TC24 HTTP-IDEMPOTENCY-HEADER — real HTTP server forwards Idempotency-Key so approve works end-to-end (95.7912ms)
+  ✖ TC25 PATCH-RE-RESOLVE — PATCH status RESOLVED on an already-RESOLVED annotation is rejected (422) and does not bump the version (3.4742ms)
+  ✖ TC26 PATCH-BYPASS — a REVIEWER cannot resolve via PATCH (403, unchanged); RESOLVED goes through /approve (1.2514ms)
+  ✔ TC27 PATCH-NOT-OVER-BLOCKED — reviewer keeps OPEN<->IN_PROGRESS and reopen; PROJECT_LEAD may still resolve via PATCH (1.7564ms)
+✖ VT-087 Reviewer Approval — vertical slice (151.0998ms)
+ℹ tests 27
+ℹ suites 1
+ℹ pass 25
+ℹ fail 2
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 716.3404
+
+✖ failing tests:
+
+test at apps\api\test\reviewer-approval.spec.ts:452:3
+✖ TC25 PATCH-RE-RESOLVE — PATCH status RESOLVED on an already-RESOLVED annotation is rejected (422) and does not bump the version (3.4742ms)
+  AssertionError [ERR_ASSERTION]: RESOLVED -> RESOLVED via PATCH must be rejected
+  
+  422 !== 403
+  
+      at TestContext.<anonymous> (file:///C:/Users/Admin/workspace/General-Information/apps/api/test/reviewer-approval.spec.ts:459:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1313:7)
+      at async Suite.processPendingSubtests (node:internal/test_runner/test:897:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 422,
+    expected: 403,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at apps\api\test\reviewer-approval.spec.ts:465:3
+✖ TC26 PATCH-BYPASS — a REVIEWER cannot resolve via PATCH (403, unchanged); RESOLVED goes through /approve (1.2514ms)
+  AssertionError [ERR_ASSERTION]: reviewer PATCH -> RESOLVED must be forbidden
+  
+  200 !== 403
+  
+      at TestContext.<anonymous> (file:///C:/Users/Admin/workspace/General-Information/apps/api/test/reviewer-approval.spec.ts:469:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1313:7)
+      at async Suite.processPendingSubtests (node:internal/test_runner/test:897:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 200,
+    expected: 403,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
