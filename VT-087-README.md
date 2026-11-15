@@ -1,97 +1,65 @@
 # VT-087 — Reviewer Approval Vertical Slice
 
-Individual assignment BT3 (student 23001884), team SE2026-T22.
-Branch: `individual/vt-087-reviewer-approval`
-Baseline commit: `a88aac211712800cdc1c993edd0fc28ec5d988d1`
+Individual assignment BT3 (student 23001884), team SE2026-T22, project 3D-WEB-02.
+Change request: a **reviewer** role that can read and approve annotations but never modify the original data.
+Risk: race condition when two concurrent requests change the same annotation.
+
+- Submission branch: `individual/vt-087-reviewer-approval` (do not merge until the team reviews it)
+- Baseline commit: `a88aac211712800cdc1c993edd0fc28ec5d988d1`
 
 ## What this branch adds
 
-- `POST /api/v1/annotations/:id/approve` — reviewer-only approval endpoint.
-- RBAC gate in `AnnotationService.approveAnnotation` (only `REVIEWER` / `PROJECT_LEAD`).
-- `Idempotency-Key` guard (HTTP header, body fallback) so a retried approve has no second side effect.
-- Reviewer content-protection gate: an explicit `REVIEWER` cannot mutate `position` / `normal` / `cameraState`.
-- Reuses the existing Optimistic Concurrency Control (OCC) pre-check + atomic Compare-And-Swap.
-- `apps/api/test/reviewer-approval.spec.ts` — TC01–TC20 vertical-slice suite (20 tests).
-- `scripts/vt087-load-test.mjs` — 100-task contention + throughput benchmark.
+- `POST /api/v1/annotations/:id/approve` (reviewer / project-lead only), body `{ "expectedVersion": n }`, header `Idempotency-Key`.
+- RBAC gate + reviewer content gate (a `REVIEWER` cannot change `position` / `normal` / `cameraState`, cannot delete).
+- Idempotency guard (same key → stored outcome, no second version bump).
+- Concurrency guard: OCC pre-check + atomic compare-and-swap (`updateIfVersion`) → exactly one winner, others 409.
+- Double-approval guard: a RESOLVED annotation cannot be re-approved with a new key (422, no version bump).
+- `server.ts` forwards the `Idempotency-Key` header and allows it in CORS (without it, approve over real HTTP was always 422).
 
-## Prerequisites
+## Run
 
 ```bash
 npm install
+npm run verify                          # whole monorepo: architecture check + all suites
+npm run test:vt087                      # VT-087 suite, TC01–TC24
+npm run test:vt087:load                 # 100 concurrent approves, in-process
+node scripts/vt087-http-load-test.mjs   # 100 concurrent approves over real HTTP, 5 rounds (ROUNDS=n to change)
+node --test --experimental-test-coverage --test-coverage-include='apps/api/src/**' apps/api/test/reviewer-approval.spec.ts
+node --test --test-randomize --test-random-seed=7 apps/api/test/reviewer-approval.spec.ts   # order check
 ```
 
-## Run the tests
+## Commit trail (test-first)
+
+| Commit | Meaning | VT-087 result |
+|---|---|---|
+| `a88aac2` | baseline | – |
+| `3281ebe` | tests TC01–TC09 (RED) | 6 fail |
+| `eb2cd62` | reviewer approval + OCC + idempotency (GREEN) | 9/9 pass |
+| `9123a4d`, `bccd603`, `22dd10b` | TC10–TC20, in-process load harness | 20/20 pass |
+| `c9f4914` | TC21–TC24 (RED: double approve, HTTP header) | `evidence/tc21_red.log`, `evidence/tc24_red.log` |
+| `aa0edf0` | fix: RESOLVED guard + forward Idempotency-Key | 24/24 pass |
+
+## Mutation experiment ("remove idempotency / concurrency guard")
+
+Each mutant is a throw-away branch cut from `aa0edf0`; none is part of the submission branch.
+
+| Branch | Mutation | Killed by |
+|---|---|---|
+| `experiment/vt-087-mut-final-idem` | idempotency early-return disabled | TC09, TC24 |
+| `experiment/vt-087-mut-final-occ` | OCC pre-check + CAS version compare removed | TC07, TC08, TC18, TC22 (+ HTTP load scenario A) |
+| `experiment/vt-087-mut-final-both` | both guards removed | TC07, TC08, TC09, TC17, TC18, TC22, TC24 |
 
 ```bash
-# Whole monorepo (architecture check + shared/api/web suites)
-npm run verify
-
-# Only the VT-087 vertical slice (20 tests, TC01–TC20)
-npm run test:vt087
-
-# API suite
-npm run test:api
-
-# 100 concurrent-task load benchmark (JSON report)
-npm run test:vt087:load
-```
-
-## Reproduce the RED → GREEN evidence
-
-```bash
+git switch experiment/vt-087-mut-final-occ && npm run test:vt087   # expect failures
 git switch individual/vt-087-reviewer-approval
-git checkout 3281ebe86ac84d0b4aee1db95895e2c1f78ebe4d   # RED: tests only, no implementation
-npm run test:vt087                                       # suite has 9 tests (TC01–TC09); TC02/03/05/07/08/09 FAIL (6 fail)
-git checkout eb2cd62f7aa928c7cad63afb70ce7f4150ac7924   # GREEN: + implementation patch
-npm run test:vt087                                       # 9/9 PASS (TC01–TC09)
-git checkout 22dd10bd70852e953d4efd8e3014c9f332050ec2   # final tip: T2 tests added (TC13–TC20)
-npm run test:vt087                                       # 20/20 PASS (TC01–TC20)
 ```
 
-## Reproduce the mutation experiment
+Older mutants from the first iteration remain on `exp/vt087-mut{A,B,B1,B2,C,D,E,F,G}`.
 
-```bash
-git switch experiment/vt-087-mutation
-git checkout exp/vt087-mutA                             # MUTANT A: idempotency guard removed
-npm run test:vt087                                      # TC09 FAILS
-git checkout exp/vt087-mutB1                            # MUTANT B1: OCC pre-check removed (equivalent — CAS covers it)
-npm run test:vt087                                      # all pass -> SURVIVED (equivalent)
-git checkout exp/vt087-mutB2                            # MUTANT B2: CAS !committed removed
-npm run test:vt087                                      # TC08 + TC18 FAIL
-git checkout exp/vt087-mutB                             # MUTANT B: pre-check + CAS removed
-npm run test:vt087                                      # TC07 + TC08 + TC18 FAIL
-git checkout exp/vt087-mutC                             # MUTANT C: reviewer content gate removed
-npm run test:vt087                                      # TC03 FAILS
-git checkout exp/vt087-mutD                             # MUTANT D: RBAC role check removed
-npm run test:vt087                                      # TC05 + TC14 FAIL
-```
+## Evidence (`evidence/`)
 
-The mutation branch is **not** part of the submission; the submission branch never contains it.
+`vt087_final.log`, `verify_final_tip.log`, `coverage_final.txt`, `flaky_check.log`, `load_final.log`,
+`http_load_final.log`, `mut_final_{idem,occ,both}.log`, `mut_final_*_http_load.log`, `tc21_red.log`, `tc24_red.log`.
 
-## Files changed vs baseline
-
-| File | Change |
-|---|---|
-| `apps/api/src/modules/annotations/domain/annotation.service.ts` | `approveAnnotation`, idempotency store, reviewer content gate, optional role |
-| `apps/api/src/modules/annotations/http/annotation.controller.ts` | `approveAnnotation` HTTP mapping |
-| `apps/api/src/http/app-router.ts` | `POST .../approve` route + `Idempotency-Key` header |
-|| `packages/shared/src/contracts/api-contracts.ts` | `canActorModifyAnnotation` accepts optional role |
-
-## Commit table — final branch tip (22dd10b)
-
-| Hash (short) | Subject | What changed | Tests added in it |
-|---|---|---|---|
-| 3281ebe | test(vt-087): add reviewer-approval vertical-slice tests (RED) | tests | TC01–TC09 (9 tests; RED, 6 failing) |
-| eb2cd62 | feat(vt-087): reviewer approval with OCC + idempotency guard | implementation | 0 (GREEN, 9/9 PASS) |
-| 9123a4d | test(vt-087): add TC10/TC11 risk tests + 100-task load harness | tests | TC10, TC11 (risk tests) |
-| bccd603 | test(vt-087): add TC12 not-found path + tighten req() types | tests | TC12 |
-| 924b8df | docs(vt-087): add README + English report for BT3 | docs | 0 |
-| 22dd10b | test(vt-087): add T2 tests (TC13-TC20) | tests | TC13–TC20 (8 tests) |
-
-## Evidence pack
-
-- Full English report: `docs/VT-087-REPORT.md`
-- This README: `VT-087-README.md`
-- Mutation raw logs: `evidence/mutA.log`, `evidence/mutB1.log`, `evidence/mutB2.log`, `evidence/mutB.log`, `evidence/mutC.log`, `evidence/mutD.log`
-- Load raw JSON (30 runs): `evidence/load-1.json` … `evidence/load-30.json`
-- Coverage raw output: `evidence/coverage.txt` (`node --experimental-test-coverage --test apps/api/test/reviewer-approval.spec.ts`)
+Limits: in-memory store on one laptop, no real database or network hop between hosts; the p95 numbers show the
+guard logic is not a bottleneck, not a production SLA.

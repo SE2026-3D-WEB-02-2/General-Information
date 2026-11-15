@@ -1,0 +1,9 @@
+# Flaky check 1: 30 sequential runs, fixed order
+fixed-order runs=30 failed=0
+# Flaky check 2: 30 runs, random order (--test-randomize, seeds 1..30) -> order/shared state
+random-order runs=30 failed=0
+# Flaky check 3: concurrency tests only (TC08, TC18, TC24) x 100
+concurrency-only runs=100 failed=0
+# Flaky check 4: time - fake clock in TC01-TC23; TC24 signs with Date.now (600s window)
+fake-clock call sites: 21
+Date.now|Math.random uses in spec: 1

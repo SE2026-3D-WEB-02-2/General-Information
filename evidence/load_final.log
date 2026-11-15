@@ -1,0 +1,41 @@
+
+> spriter-3d-review@0.1.0 test:vt087:load
+> node scripts/vt087-load-test.mjs
+
+{
+  "environment": "in-process Hexagonal backend, in-memory store (simulated, not production)",
+  "concurrentTasks": 100,
+  "p95TargetMs": 3000,
+  "scenarioA_contention": {
+    "description": "100 approves, SAME annotation, same expectedVersion=1",
+    "http200": 1,
+    "http409": 99,
+    "other": 0,
+    "finalVersion": 2,
+    "integrityOk": true,
+    "latencyMs": {
+      "count": 100,
+      "p50": 10.29,
+      "p95": 10.31,
+      "p99": 10.31,
+      "max": 10.31
+    },
+    "wallMs": 10.39
+  },
+  "scenarioB_throughput": {
+    "description": "100 approves, 100 DISTINCT annotations, expectedVersion=1",
+    "http200": 100,
+    "http409": 0,
+    "other": 0,
+    "allFinalVersionsAre2": true,
+    "integrityOk": true,
+    "latencyMs": {
+      "count": 100,
+      "p50": 5.31,
+      "p95": 5.31,
+      "p99": 5.31,
+      "max": 5.31
+    },
+    "wallMs": 5.35
+  }
+}

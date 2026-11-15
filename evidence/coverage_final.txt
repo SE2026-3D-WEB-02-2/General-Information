@@ -1,0 +1,76 @@
+🚀 Spriter Backend API listening on http://localhost:0
+▶ VT-087 Reviewer Approval — vertical slice
+  ✔ TC01 READ — reviewer can list annotations (200, data present) (5.362ms)
+  ✔ TC02 APPROVE — valid reviewer approval transitions to RESOLVED (1.9661ms)
+  ✔ TC03 NO-EDIT — reviewer PATCH to position is FORBIDDEN (403) and data unchanged (1.5503ms)
+  ✔ TC04 NO-DELETE — reviewer DELETE is FORBIDDEN (403) (1.0097ms)
+  ✔ TC05 MEMBER — non-privileged role cannot approve (403) (0.4129ms)
+  ✔ TC06 UNAUTHORIZED — approve without a valid token is UNAUTHORIZED (401) (0.548ms)
+  ✔ TC07 OLD-VERSION — stale-version approve is CONCURRENCY_CONFLICT (409), data untouched (0.8528ms)
+  ✔ TC08 CONCURRENT — two simultaneous approves leave exactly one resolved (0.868ms)
+  ✔ TC09 IDEMPOTENT — re-submitting the same approve key has no second side effect (0.5244ms)
+  ✔ TC10 MISSING-KEY — approve without an Idempotency-Key is rejected (422), no state change (0.3248ms)
+  ✔ TC11 STORE-FAILURE — a failing store propagates and leaves no partial state (0.7806ms)
+  ✔ TC12 NOT-FOUND — approving a non-existent annotation returns 404 (0.2534ms)
+  ✔ TC13 MISSING-EXPECTED-VERSION — approve over HTTP without expectedVersion is 400 and leaves data unchanged (0.2607ms)
+  ✔ TC14 MEMBER-HTTP — non-privileged role over HTTP is rejected and leaves data unchanged (0.2743ms)
+  ✔ TC15 INVALID-STATE — approving an ARCHIVED annotation is not allowed (matches the shared policy source) (0.2406ms)
+  ✔ TC16 SAME-IDEMPOTENCY-KEY — same key for a DIFFERENT annotation: record actual behaviour (0.5065ms)
+  ✔ TC17 IDEMPOTENT-AUDIT — idempotent retry leaves exactly one approval audit entry (0.4799ms)
+  ✔ TC18 CONCURRENT-SAME-KEY — two concurrent approves with the same key and same version produce exactly one state change (0.5689ms)
+  ✔ TC19 UNIT canActorModifyAnnotation — reviewer may comment/transition but not archive/delete (0.1598ms)
+  ✔ TC20 UNIT ALLOWED_TRANSITIONS — state machine matches the policy source (0.1349ms)
+  ✔ TC21 APPROVE-RESOLVED — approving an already-RESOLVED annotation is INVARIANT_VIOLATED (0.3761ms)
+  ✔ TC22 B1 KILL — stale-version approval on ARCHIVED annotation (0.2953ms)
+  ✔ TC23 PATCH-UNCHANGED-STATUS-PLUS-POSITION - PATCH with unchanged status and position change on non-resolved annotation still returns 200 (0.461ms)
+  ✔ TC24 HTTP-IDEMPOTENCY-HEADER — real HTTP server forwards Idempotency-Key so approve works end-to-end (60.1626ms)
+✔ VT-087 Reviewer Approval — vertical slice (80.7809ms)
+ℹ tests 24
+ℹ suites 1
+ℹ pass 24
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 523.6615
+ℹ start of coverage report
+ℹ -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ℹ file                                  | line % | branch % | funcs % | uncovered lines
+ℹ -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ℹ apps                                  |        |          |         | 
+ℹ  api                                  |        |          |         | 
+ℹ   src                                 |        |          |         | 
+ℹ    http                               |        |          |         | 
+ℹ     app-router.ts                     |  75.31 |    61.67 |   85.71 | 59 95-96 102-103 105-109 111-113 115-116 118-119 121-122 133-138 142-146 151-154 158-163 180-186 191-192 197-202 235-239
+ℹ    modules                            |        |          |         | 
+ℹ     annotations                       |        |          |         | 
+ℹ      adapters                         |        |          |         | 
+ℹ       in-memory.repository.ts         |  67.97 |    75.00 |   50.00 | 32-33 45-46 48-50 56-60 70-75 93-99 102-110 121-127
+ℹ       log-purge.worker.ts             |  58.18 |   100.00 |   28.57 | 26-35 38-43 46-50 53-54
+ℹ       socket-realtime.gateway.ts      |  51.13 |    71.43 |   57.14 | 55-58 62-63 67-68 74-127 130-132
+ℹ      domain                           |        |          |         | 
+ℹ       annotation.service.ts           |  56.72 |    80.00 |   50.00 | 83-86 89-90 93-94 100-132 151-152 259-327 330-387 408-419 545-546 559-581 585-604 607-669
+ℹ       ports.ts                        | 100.00 |   100.00 |  100.00 | 
+ℹ      http                             |        |          |         | 
+ℹ       annotation.controller.ts        |  53.31 |    67.86 |   60.00 | 29-45 48-71 86-93 106-109 116-124 126-132 197-203 225-228 235-238 243-254 257-301
+ℹ     auth                              |        |          |         | 
+ℹ      adapters                         |        |          |         | 
+ℹ       in-memory-user.repository.ts    |  89.29 |   100.00 |   60.00 | 44-45 52-55
+ℹ      domain                           |        |          |         | 
+ℹ       auth.service.ts                 |  45.00 |    42.86 |   45.45 | 20-32 59-67 70-88 93-94 103-104 116-117 125-126 130-168 171-190 195-196
+ℹ       ports.ts                        | 100.00 |   100.00 |  100.00 | 
+ℹ      http                             |        |          |         | 
+ℹ       auth.controller.ts              |  48.54 |    80.00 |   42.86 | 16-17 20-38 41-52 55-63 90-100
+ℹ     models                            |        |          |         | 
+ℹ      adapters                         |        |          |         | 
+ℹ       s3-presigned-storage.adapter.ts |  57.94 |   100.00 |   44.44 | 24-41 44-57 90-91 94-95 98-106
+ℹ      domain                           |        |          |         | 
+ℹ       model.service.ts                |  25.60 |    60.00 |   28.57 | 37-56 59-120 123-154 157-167
+ℹ       ports.ts                        | 100.00 |   100.00 |  100.00 | 
+ℹ      http                             |        |          |         | 
+ℹ       model.controller.ts             |  38.10 |    77.78 |   50.00 | 31-39 45-66 69-90 93-104
+ℹ    server.ts                          |  77.08 |    52.00 |  100.00 | 35-43 52-60 66-67 95-96
+ℹ -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ℹ all files                             |  58.09 |    69.39 |   51.69 | 
+ℹ -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ℹ end of coverage report
