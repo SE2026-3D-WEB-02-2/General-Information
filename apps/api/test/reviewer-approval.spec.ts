@@ -19,7 +19,9 @@ const TS = '2026-10-24T09:00:00.000Z';
 function signToken(payload, secret = 'spriter-dev-hmac-secret-2026') {
   const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url');
   const issuedAt = Math.floor(new Date(TS).getTime() / 1000);
-  const body = { ...payload, iat: issuedAt, exp: issuedAt + 86400 };
+  // Real tokens carry the user id in 'sub' (AuthService.verifyToken); map the test's 'id' onto it.
+  const { id, ...rest } = payload;
+  const body = { sub: id, ...rest, iat: issuedAt, exp: issuedAt + 86400 };
   const payloadB64 = Buffer.from(JSON.stringify(body)).toString('base64url');
   const sig = createHmac('sha256', secret).update(`${header}.${payloadB64}`).digest('base64url');
   return `${header}.${payloadB64}.${sig}`;
@@ -409,7 +411,7 @@ describe('VT-087 Reviewer Approval — vertical slice', () => {
     const app = new SpriterApiApplication({ clock: { now: () => new Date(TS) } });
     const id = seedAnnotation(app);
     // Use PROJECT_LEAD so the reviewer content-protection gate doesn't block position change
-    const leadToken = signToken({ id: 'user-3d-huy', email: 'huy@spriter.local', name: 'Hoàng Đức Huy', role: 'PROJECT_LEAD' });
+    const leadToken = signToken({ id: 'user-lead-nekover2', email: 'lead@spriter.local', name: 'Nekover2 (Tech Lead)', role: 'PROJECT_LEAD' });
     const res = await app.handleRequest(req('PATCH', `/api/v1/annotations/${id}`, {
       auth: leadToken,
       body: { expectedVersion: 1, status: 'OPEN', position: [9.9, 9.9, 9.9] },
@@ -429,7 +431,7 @@ describe('VT-087 Reviewer Approval — vertical slice', () => {
       // The real server validates tokens against the wall clock, so sign with "now".
       const now = Math.floor(Date.now() / 1000);
       const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url');
-      const body = Buffer.from(JSON.stringify({ id: 'user-3d-huy', email: 'huy@spriter.local', name: 'Hoàng Đức Huy', role: 'REVIEWER', iat: now, exp: now + 600 })).toString('base64url');
+      const body = Buffer.from(JSON.stringify({ sub: 'user-3d-huy', email: 'huy@spriter.local', name: 'Hoàng Đức Huy', role: 'REVIEWER', iat: now, exp: now + 600 })).toString('base64url');
       const sig = createHmac('sha256', 'spriter-dev-hmac-secret-2026').update(`${header}.${body}`).digest('base64url');
       const send = () => fetch(`http://127.0.0.1:${port}/api/v1/annotations/ann-review-1/approve`, {
         method: 'POST',
@@ -453,7 +455,7 @@ describe('VT-087 Reviewer Approval — vertical slice', () => {
     const app = new SpriterApiApplication({ clock: { now: () => new Date(TS) } });
     const id = seedAnnotation(app, { status: 'RESOLVED', version: 2 });
     // Since TC26 a REVIEWER is stopped earlier (403, approve-only gate); PROJECT_LEAD reaches the guard (422).
-    const lead = signToken({ id: 'user-lead', email: 'lead@spriter.local', name: 'Lead', role: 'PROJECT_LEAD' });
+    const lead = signToken({ id: 'user-lead-nekover2', email: 'lead@spriter.local', name: 'Nekover2 (Tech Lead)', role: 'PROJECT_LEAD' });
     for (const [auth, code] of [[REVIEWER, 403], [lead, 422]] as const) {
       const res = await app.handleRequest(req('PATCH', `/api/v1/annotations/${id}`, { auth, body: { expectedVersion: 2, status: 'RESOLVED' } }));
       assert.equal(res.statusCode, code, 'RESOLVED -> RESOLVED via PATCH must be rejected');
@@ -479,7 +481,7 @@ describe('VT-087 Reviewer Approval — vertical slice', () => {
     const id = seedAnnotation(app);
     const toProgress = await app.handleRequest(req('PATCH', `/api/v1/annotations/${id}`, { body: { expectedVersion: 1, status: 'IN_PROGRESS' } }));
     assert.equal(toProgress.statusCode, 200, 'reviewer OPEN -> IN_PROGRESS stays allowed');
-    const lead = signToken({ id: 'user-lead', email: 'lead@spriter.local', name: 'Lead', role: 'PROJECT_LEAD' });
+    const lead = signToken({ id: 'user-lead-nekover2', email: 'lead@spriter.local', name: 'Nekover2 (Tech Lead)', role: 'PROJECT_LEAD' });
     const leadResolve = await app.handleRequest(req('PATCH', `/api/v1/annotations/${id}`, { auth: lead, body: { expectedVersion: 2, status: 'RESOLVED' } }));
     assert.equal(leadResolve.statusCode, 200, 'PROJECT_LEAD may still resolve via PATCH');
     const reopen = await app.handleRequest(req('PATCH', `/api/v1/annotations/${id}`, { body: { expectedVersion: 3, status: 'IN_PROGRESS' } }));

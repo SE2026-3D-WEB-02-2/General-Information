@@ -23,7 +23,7 @@ function token() {
   const now = Math.floor(Date.now() / 1000);
   const h = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url');
   const b = Buffer.from(
-    JSON.stringify({ id: 'user-3d-huy', email: 'huy@spriter.local', name: 'Reviewer', role: 'REVIEWER', iat: now, exp: now + 3600 }),
+    JSON.stringify({ sub: 'user-3d-huy', email: 'huy@spriter.local', name: 'Reviewer', role: 'REVIEWER', iat: now, exp: now + 3600 }),
   ).toString('base64url');
   const s = createHmac('sha256', process.env.JWT_SECRET ?? 'spriter-dev-hmac-secret-2026').update(`${h}.${b}`).digest('base64url');
   return `Bearer ${h}.${b}.${s}`;
