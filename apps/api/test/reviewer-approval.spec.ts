@@ -452,12 +452,38 @@ describe('VT-087 Reviewer Approval — vertical slice', () => {
   it('TC25 PATCH-RE-RESOLVE — PATCH status RESOLVED on an already-RESOLVED annotation is rejected (422) and does not bump the version', async () => {
     const app = new SpriterApiApplication({ clock: { now: () => new Date(TS) } });
     const id = seedAnnotation(app, { status: 'RESOLVED', version: 2 });
-    for (const auth of [REVIEWER, signToken({ id: 'user-lead', email: 'lead@spriter.local', name: 'Lead', role: 'PROJECT_LEAD' })]) {
+    // Since TC26 a REVIEWER is stopped earlier (403, approve-only gate); PROJECT_LEAD reaches the guard (422).
+    const lead = signToken({ id: 'user-lead', email: 'lead@spriter.local', name: 'Lead', role: 'PROJECT_LEAD' });
+    for (const [auth, code] of [[REVIEWER, 403], [lead, 422]] as const) {
       const res = await app.handleRequest(req('PATCH', `/api/v1/annotations/${id}`, { auth, body: { expectedVersion: 2, status: 'RESOLVED' } }));
-      assert.equal(res.statusCode, 422, 'RESOLVED -> RESOLVED via PATCH must be rejected for every role');
+      assert.equal(res.statusCode, code, 'RESOLVED -> RESOLVED via PATCH must be rejected');
     }
     const after = await app.annotationRepo.findById(id);
     assert.equal(after!.version, 2, 'version must stay 2: a same-status PATCH is not a transition');
     assert.equal(after!.status, 'RESOLVED');
+  });
+  it('TC26 PATCH-BYPASS — a REVIEWER cannot resolve via PATCH (403, unchanged); RESOLVED goes through /approve', async () => {
+    const app = new SpriterApiApplication({ clock: { now: () => new Date(TS) } });
+    const id = seedAnnotation(app);
+    const res = await app.handleRequest(req('PATCH', `/api/v1/annotations/${id}`, { body: { expectedVersion: 1, status: 'RESOLVED' } }));
+    assert.equal(res.statusCode, 403, 'reviewer PATCH -> RESOLVED must be forbidden');
+    const after = await app.annotationRepo.findById(id);
+    assert.equal(after!.status, 'OPEN');
+    assert.equal(after!.version, 1, 'no version bump on the forbidden PATCH');
+    const viaApprove = await app.handleRequest(req('POST', `/api/v1/annotations/${id}/approve`, { idempotencyKey: 'k26', body: { expectedVersion: 1 } }));
+    assert.equal(viaApprove.statusCode, 200, 'the same reviewer can still resolve through /approve');
+  });
+
+  it('TC27 PATCH-NOT-OVER-BLOCKED — reviewer keeps OPEN<->IN_PROGRESS and reopen; PROJECT_LEAD may still resolve via PATCH', async () => {
+    const app = new SpriterApiApplication({ clock: { now: () => new Date(TS) } });
+    const id = seedAnnotation(app);
+    const toProgress = await app.handleRequest(req('PATCH', `/api/v1/annotations/${id}`, { body: { expectedVersion: 1, status: 'IN_PROGRESS' } }));
+    assert.equal(toProgress.statusCode, 200, 'reviewer OPEN -> IN_PROGRESS stays allowed');
+    const lead = signToken({ id: 'user-lead', email: 'lead@spriter.local', name: 'Lead', role: 'PROJECT_LEAD' });
+    const leadResolve = await app.handleRequest(req('PATCH', `/api/v1/annotations/${id}`, { auth: lead, body: { expectedVersion: 2, status: 'RESOLVED' } }));
+    assert.equal(leadResolve.statusCode, 200, 'PROJECT_LEAD may still resolve via PATCH');
+    const reopen = await app.handleRequest(req('PATCH', `/api/v1/annotations/${id}`, { body: { expectedVersion: 3, status: 'IN_PROGRESS' } }));
+    assert.equal(reopen.statusCode, 200, 'reviewer may still reopen RESOLVED -> IN_PROGRESS');
+    assert.equal((await app.annotationRepo.findById(id))!.version, 4);
   });
 });
