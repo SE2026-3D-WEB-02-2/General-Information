@@ -20,6 +20,8 @@
     "arch:check": "node scripts/arch-check.mjs",
     "verify": "npm run arch:check && npm test",
     "github:sync": "node scripts/github-sync-issues.mjs",
-    "github:dry-run": "node scripts/github-sync-issues.mjs --dry-run"
+    "github:dry-run": "node scripts/github-sync-issues.mjs --dry-run",
+    "test:vt085": "node --test packages/shared/test/vt085-undo-contract.spec.ts apps/api/test/vt085-undo-delete.provider.spec.ts apps/web/test/vt085-undo-delete.consumer.spec.ts",
+    "test:load:vt085": "node scripts/vt085-load-test.mjs --rounds=5"
   }
 }
