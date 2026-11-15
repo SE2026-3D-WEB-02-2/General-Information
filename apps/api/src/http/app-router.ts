@@ -200,6 +200,17 @@ export class SpriterApiApplication {
       });
     }
 
+    // [VT-085] Undo a recent delete. The raw body is passed on (no `?? {}`) so an absent body is rejected, not defaulted.
+    const restoreMatch = /^\/api\/v1\/annotations\/([^/]+)\/restore$/.exec(cleanPath);
+    if (req.method === 'POST' && restoreMatch) {
+      return this.annotationController.restoreAnnotation({
+        params: { id: restoreMatch[1]! },
+        actorId: actor.id,
+        actorRole: actor.role,
+        body: req.body,
+      });
+    }
+
     const annIdMatch = /^\/api\/v1\/annotations\/([^/]+)$/.exec(cleanPath);
     if (annIdMatch) {
       const id = annIdMatch[1]!;

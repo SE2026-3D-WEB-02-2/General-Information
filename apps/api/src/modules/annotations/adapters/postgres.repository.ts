@@ -246,6 +246,24 @@ export class PostgresAnnotationRepository implements AnnotationRepositoryPort {
     });
   }
 
+  public async deleteIfVersion(
+    id: string,
+    expectedVersion: number,
+    audit: OperationalAuditLogEntry,
+  ): Promise<boolean> {
+    return this.db.transaction(async (tx) => {
+      const delRes = await tx.query(`DELETE FROM annotations WHERE id = $1 AND version = $2`, [
+        id,
+        expectedVersion,
+      ]);
+      if (delRes.rowCount !== 1) {
+        return false;
+      }
+      await this.insertAuditWithTx(tx, audit);
+      return true;
+    });
+  }
+
   public async bulkReplaceOrInsert(
     _modelId: string,
     records: InternalDbAnnotationRecord[],
