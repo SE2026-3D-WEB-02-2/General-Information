@@ -146,16 +146,6 @@ export class AnnotationController {
     body: { expectedVersion: number; idempotencyKey?: string };
     idempotencyKey?: string;
   }) {
-    if (!Number.isInteger(req.body.expectedVersion) || req.body.expectedVersion < 1) {
-      return {
-        statusCode: 400 as const,
-        body: {
-          errorCode: 'MISSING_EXPECTED_VERSION',
-          message: 'expectedVersion (int >= 1) is required',
-        },
-      };
-    }
-
     const result = await this.annotationService.approveAnnotation(
       req.params.id,
       req.actorId,
