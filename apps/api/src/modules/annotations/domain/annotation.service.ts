@@ -195,13 +195,6 @@ export class AnnotationService {
     if (!this.approverRoles.has(actorRole)) {
       return { status: 'FORBIDDEN', message: 'Only REVIEWER and PROJECT_LEAD may approve annotations.' };
     }
-    if (!command.idempotencyKey) {
-      return {
-        status: 'INVALID_INPUT',
-        errorCode: 'MISSING_IDEMPOTENCY_KEY',
-        message: 'idempotencyKey is required for approve.',
-      };
-    }
     const existing = this.idempotencyStore.get(command.idempotencyKey);
     if (existing && existing.annotationId === id) {
       const snapshot = await this.repo.findById(id);
