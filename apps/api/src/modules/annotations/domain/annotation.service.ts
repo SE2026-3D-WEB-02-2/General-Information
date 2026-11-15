@@ -212,6 +212,7 @@ export class AnnotationService {
       actorId,
       { ...command, status: 'RESOLVED' },
       actorRole,
+      'approve',
     );
     if (result.status === 'OK') {
       this.idempotencyStore.set(command.idempotencyKey, {
@@ -383,6 +384,8 @@ export class AnnotationService {
       cameraState?: CameraState;
     },
     actorRole?: UserRole,
+    /** 'approve' only when called from approveAnnotation (key + idempotency already enforced). */
+    origin: 'patch' | 'approve' = 'patch',
   ): Promise<UpdateAnnotationOutcome> {
     const current = await this.repo.findById(id);
     if (!current) {
@@ -415,6 +418,16 @@ export class AnnotationService {
       return {
         status: 'FORBIDDEN',
         message: 'Reviewer may only approve; modifying annotation content is forbidden.',
+      };
+    }
+
+    // 0c. Approve-only gate (VT-087, TC26): a REVIEWER may reach RESOLVED only through
+    // approveAnnotation, so the Idempotency-Key and replay guarantees cannot be bypassed via PATCH.
+    // Other transitions (OPEN <-> IN_PROGRESS, reopen) and PROJECT_LEAD stay on PATCH.
+    if (actorRole === 'REVIEWER' && command.status === 'RESOLVED' && origin !== 'approve') {
+      return {
+        status: 'FORBIDDEN',
+        message: 'Reviewers resolve annotations through POST /api/v1/annotations/:id/approve.',
       };
     }
 

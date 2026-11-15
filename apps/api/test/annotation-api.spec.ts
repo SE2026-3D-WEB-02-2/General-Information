@@ -278,11 +278,12 @@ describe('@spriter/api — Full Stream A Backend Suite (M1–M4: [A1]–[A10])',
     assert.equal(createRes.statusCode, 201);
     const createdAnn = createRes.body as any;
 
+    // VT-087: a REVIEWER resolves through /approve (PATCH -> RESOLVED is forbidden for reviewers).
     const resolveRes = await app.handleRequest({
-      method: 'PATCH',
-      path: `/api/v1/annotations/${createdAnn.id}`,
-      headers: { authorization: huyToken },
-      body: { expectedVersion: 1, status: 'RESOLVED' },
+      method: 'POST',
+      path: `/api/v1/annotations/${createdAnn.id}/approve`,
+      headers: { authorization: huyToken, idempotencyKey: 'a3-setup-resolve' },
+      body: { expectedVersion: 1 },
     });
     assert.equal(resolveRes.statusCode, 200);
 
