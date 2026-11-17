@@ -1,0 +1,163 @@
+
+> spriter-3d-review@0.1.0 test:vt087
+> node --test apps/api/test/reviewer-approval.spec.ts
+
+🚀 Spriter Backend API listening on http://localhost:0
+▶ VT-087 Reviewer Approval — vertical slice
+  ✔ TC01 READ — reviewer can list annotations (200, data present) (3.7692ms)
+  ✔ TC02 APPROVE — valid reviewer approval transitions to RESOLVED (1.2907ms)
+  ✔ TC03 NO-EDIT — reviewer PATCH to position is FORBIDDEN (403) and data unchanged (1.1922ms)
+  ✔ TC04 NO-DELETE — reviewer DELETE is FORBIDDEN (403) (0.8787ms)
+  ✔ TC05 MEMBER — non-privileged role cannot approve (403) (0.4379ms)
+  ✔ TC06 UNAUTHORIZED — approve without a valid token is UNAUTHORIZED (401) (0.4451ms)
+  ✖ TC07 OLD-VERSION — stale-version approve is CONCURRENCY_CONFLICT (409), data untouched (1.5084ms)
+  ✖ TC08 CONCURRENT — two simultaneous approves leave exactly one resolved (1.1591ms)
+  ✖ TC09 IDEMPOTENT — re-submitting the same approve key has no second side effect (1.0341ms)
+  ✔ TC10 MISSING-KEY — approve without an Idempotency-Key is rejected (422), no state change (0.5261ms)
+  ✔ TC11 STORE-FAILURE — a failing store propagates and leaves no partial state (0.7276ms)
+  ✔ TC12 NOT-FOUND — approving a non-existent annotation returns 404 (0.3738ms)
+  ✔ TC13 MISSING-EXPECTED-VERSION — approve over HTTP without expectedVersion is 400 and leaves data unchanged (0.3152ms)
+  ✔ TC14 MEMBER-HTTP — non-privileged role over HTTP is rejected and leaves data unchanged (0.2587ms)
+  ✔ TC15 INVALID-STATE — approving an ARCHIVED annotation is not allowed (matches the shared policy source) (0.2996ms)
+  ✔ TC16 SAME-IDEMPOTENCY-KEY — same key for a DIFFERENT annotation: record actual behaviour (0.6753ms)
+  ✖ TC17 IDEMPOTENT-AUDIT — idempotent retry leaves exactly one approval audit entry (0.649ms)
+  ✖ TC18 CONCURRENT-SAME-KEY — two concurrent approves with the same key and same version produce exactly one state change (0.6193ms)
+  ✔ TC19 UNIT canActorModifyAnnotation — reviewer may comment/transition but not archive/delete (0.1374ms)
+  ✔ TC20 UNIT ALLOWED_TRANSITIONS — state machine matches the policy source (0.0927ms)
+  ✔ TC21 APPROVE-RESOLVED — approving an already-RESOLVED annotation is INVARIANT_VIOLATED (0.324ms)
+  ✖ TC22 B1 KILL — stale-version approval on ARCHIVED annotation (0.4359ms)
+  ✔ TC23 PATCH-UNCHANGED-STATUS-PLUS-POSITION - PATCH with unchanged status and position change on non-resolved annotation still returns 200 (0.4164ms)
+  ✖ TC24 HTTP-IDEMPOTENCY-HEADER — real HTTP server forwards Idempotency-Key so approve works end-to-end (43.5075ms)
+✖ VT-087 Reviewer Approval — vertical slice (63.3306ms)
+ℹ tests 24
+ℹ suites 1
+ℹ pass 17
+ℹ fail 7
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 476.9674
+
+✖ failing tests:
+
+test at apps\api\test\reviewer-approval.spec.ts:151:3
+✖ TC07 OLD-VERSION — stale-version approve is CONCURRENCY_CONFLICT (409), data untouched (1.5084ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  200 !== 409
+  
+      at TestContext.<anonymous> (file:///C:/Users/Admin/workspace/General-Information/apps/api/test/reviewer-approval.spec.ts:160:12)
+      at async Test.run (node:internal/test_runner/test:1313:7)
+      at async Suite.processPendingSubtests (node:internal/test_runner/test:897:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 200,
+    expected: 409,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at apps\api\test\reviewer-approval.spec.ts:166:3
+✖ TC08 CONCURRENT — two simultaneous approves leave exactly one resolved (1.1591ms)
+  AssertionError [ERR_ASSERTION]: expected 1 success, got 2
+  
+  2 !== 1
+  
+      at TestContext.<anonymous> (file:///C:/Users/Admin/workspace/General-Information/apps/api/test/reviewer-approval.spec.ts:179:12)
+      at async Test.run (node:internal/test_runner/test:1313:7)
+      at async Suite.processPendingSubtests (node:internal/test_runner/test:897:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 2,
+    expected: 1,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at apps\api\test\reviewer-approval.spec.ts:187:3
+✖ TC09 IDEMPOTENT — re-submitting the same approve key has no second side effect (1.0341ms)
+  AssertionError [ERR_ASSERTION]: no version increment on idempotent retry
+  
+  3 !== 2
+  
+      at TestContext.<anonymous> (file:///C:/Users/Admin/workspace/General-Information/apps/api/test/reviewer-approval.spec.ts:200:12)
+      at async Test.run (node:internal/test_runner/test:1313:7)
+      at async Suite.processPendingSubtests (node:internal/test_runner/test:897:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 3,
+    expected: 2,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at apps\api\test\reviewer-approval.spec.ts:303:3
+✖ TC17 IDEMPOTENT-AUDIT — idempotent retry leaves exactly one approval audit entry (0.649ms)
+  AssertionError [ERR_ASSERTION]: exactly one approval entry after the idempotent retry
+  
+  2 !== 1
+  
+      at TestContext.<anonymous> (file:///C:/Users/Admin/workspace/General-Information/apps/api/test/reviewer-approval.spec.ts:310:12)
+      at async Test.run (node:internal/test_runner/test:1313:7)
+      at async Suite.processPendingSubtests (node:internal/test_runner/test:897:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 2,
+    expected: 1,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at apps\api\test\reviewer-approval.spec.ts:315:3
+✖ TC18 CONCURRENT-SAME-KEY — two concurrent approves with the same key and same version produce exactly one state change (0.6193ms)
+  AssertionError [ERR_ASSERTION]: expected 1 success, got 2
+  
+  2 !== 1
+  
+      at TestContext.<anonymous> (file:///C:/Users/Admin/workspace/General-Information/apps/api/test/reviewer-approval.spec.ts:323:12)
+      at async Test.run (node:internal/test_runner/test:1313:7)
+      at async Suite.processPendingSubtests (node:internal/test_runner/test:897:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 2,
+    expected: 1,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at apps\api\test\reviewer-approval.spec.ts:384:3
+✖ TC22 B1 KILL — stale-version approval on ARCHIVED annotation (0.4359ms)
+  AssertionError [ERR_ASSERTION]: clean build: stale-version on ARCHIVED must be rejected as CONCURRENCY_CONFLICT
+  + actual - expected
+  
+  + 'INVARIANT_VIOLATED'
+  - 'CONCURRENCY_CONFLICT'
+  
+      at TestContext.<anonymous> (file:///C:/Users/Admin/workspace/General-Information/apps/api/test/reviewer-approval.spec.ts:396:12)
+      at async Test.run (node:internal/test_runner/test:1313:7)
+      at async Suite.processPendingSubtests (node:internal/test_runner/test:897:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 'INVARIANT_VIOLATED',
+    expected: 'CONCURRENCY_CONFLICT',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at apps\api\test\reviewer-approval.spec.ts:423:3
+✖ TC24 HTTP-IDEMPOTENCY-HEADER — real HTTP server forwards Idempotency-Key so approve works end-to-end (43.5075ms)
+  AssertionError [ERR_ASSERTION]: replay over HTTP must not bump the version twice
+  
+  3 !== 2
+  
+      at TestContext.<anonymous> (file:///C:/Users/Admin/workspace/General-Information/apps/api/test/reviewer-approval.spec.ts:445:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1313:7)
+      at async Suite.processPendingSubtests (node:internal/test_runner/test:897:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 3,
+    expected: 2,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }

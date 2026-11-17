@@ -23,6 +23,7 @@ export interface HttpRequestEnvelope {
     authorization?: string;
     contentType?: string;
     contentLength?: number;
+    idempotencyKey?: string;
   };
   body?: unknown;
 }
@@ -197,6 +198,18 @@ export class SpriterApiApplication {
         params: { id: commentMatch[1]! },
         actorId: actor.id,
         body: (req.body ?? {}) as any,
+      });
+    }
+
+    // 7b. Reviewer approval with OCC + idempotency (VT-087)
+    const approveMatch = /^\/api\/v1\/annotations\/([^/]+)\/approve$/.exec(cleanPath);
+    if (req.method === 'POST' && approveMatch) {
+      return this.annotationController.approveAnnotation({
+        params: { id: approveMatch[1]! },
+        actorId: actor.id,
+        actorRole: actor.role,
+        body: (req.body ?? {}) as any,
+        idempotencyKey: req.headers?.idempotencyKey,
       });
     }
 

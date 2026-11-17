@@ -1,0 +1,4 @@
+fixed-order runs=30 failed=0
+random-order runs=30 (seeds 1..30) failed=0
+concurrency-only (TC08,TC18,TC24) runs=100 failed=0
+fake-clock call sites: 25; Date.now uses: 1

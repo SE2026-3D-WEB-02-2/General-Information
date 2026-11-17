@@ -1,0 +1,10 @@
+P1 register with role=PROJECT_LEAD -> 201 role in response: PROJECT_LEAD
+   ...then DELETE someone else's annotation -> 200 DELETED
+P2 test-style token (id, no sub) approve -> 200 audit actorIds: [null]
+   real login token payload keys: sub,email,name,role,iat,exp
+P3 token role=MEMBER approve -> 403 FORBIDDEN_OPERATION
+P3 token role=undefined approve -> 200 
+P4 approve with no comment -> 422 MISSING_RESOLUTION_COMMENT
+P5 same key, different reviewer -> 200 200 approvals in audit: user-3d-huy
+P6 concurrent same-key pairs with a non-200 reply: 200 / 200
+P7 realtime events on approve: 1

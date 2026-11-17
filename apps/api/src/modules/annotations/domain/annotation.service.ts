@@ -34,6 +34,7 @@ export type UpdateAnnotationOutcome =
   | { status: 'OK'; snapshot: AnnotationDomainSnapshot }
   | { status: 'NOT_FOUND' }
   | { status: 'FORBIDDEN'; message: string }
+  | { status: 'INVALID_INPUT'; errorCode: string; message: string }
   | { status: 'INVARIANT_VIOLATED'; reasonCode: string; message: string }
   | {
       status: 'CONCURRENCY_CONFLICT';
@@ -72,6 +73,10 @@ export class AnnotationService {
     this.repo = repo ?? new InMemoryAnnotationRepository();
     this.clock = clock ?? { now: () => new Date() };
     this.realtime = realtime ?? { publishToModelRoom: () => {} };
+    /** Idempotency-key guard: maps an idempotencyKey to the last successful approve for that annotation. */
+    this.idempotencyStore = new Map<string, { annotationId: string; version: number }>();
+    /** Roles permitted to approve: the Reviewer role plus the super-role PROJECT_LEAD. */
+    this.approverRoles = new Set<UserRole>(['REVIEWER', 'PROJECT_LEAD']);
   }
 
   public seedRecord(record: InternalDbAnnotationRecord): void {
@@ -172,6 +177,50 @@ export class AnnotationService {
       createdAt: now.toISOString(),
       expiresAt: expiresAt.toISOString(),
     };
+  }
+
+  /**
+   * Reviewer-only approval (VT-087).
+   * - RBAC: only REVIEWER / PROJECT_LEAD may approve.
+   * - Idempotency: a repeated idempotencyKey for the same annotation returns the stored
+   *   outcome without a second state transition or version bump.
+   * - Concurrency: delegates to updateWithConcurrencyControl (OCC pre-check + atomic CAS).
+   */
+  public async approveAnnotation(
+    id: string,
+    actorId: string,
+    command: { expectedVersion: number; idempotencyKey?: string },
+    actorRole: UserRole = 'REVIEWER',
+  ): Promise<UpdateAnnotationOutcome> {
+    if (!this.approverRoles.has(actorRole)) {
+      return { status: 'FORBIDDEN', message: 'Only REVIEWER and PROJECT_LEAD may approve annotations.' };
+    }
+    if (!command.idempotencyKey) {
+      return {
+        status: 'INVALID_INPUT',
+        errorCode: 'MISSING_IDEMPOTENCY_KEY',
+        message: 'idempotencyKey is required for approve.',
+      };
+    }
+    const existing = this.idempotencyStore.get(command.idempotencyKey);
+    if (existing && existing.annotationId === id) {
+      const snapshot = await this.repo.findById(id);
+      return { status: 'OK', snapshot: this.toDomainSnapshot(snapshot!) };
+    }
+    const result = await this.updateWithConcurrencyControl(
+      id,
+      actorId,
+      { ...command, status: 'RESOLVED' },
+      actorRole,
+      'approve',
+    );
+    if (result.status === 'OK') {
+      this.idempotencyStore.set(command.idempotencyKey, {
+        annotationId: id,
+        version: result.snapshot.version,
+      });
+    }
+    return result;
   }
 
   public async listAnnotations(
@@ -334,7 +383,9 @@ export class AnnotationService {
       normal?: Vec3;
       cameraState?: CameraState;
     },
-    actorRole: UserRole = 'REVIEWER',
+    actorRole?: UserRole,
+    /** 'approve' only when called from approveAnnotation (key + idempotency already enforced). */
+    origin: 'patch' | 'approve' = 'patch',
   ): Promise<UpdateAnnotationOutcome> {
     const current = await this.repo.findById(id);
     if (!current) {
@@ -356,6 +407,30 @@ export class AnnotationService {
       }
     }
 
+    // 0b. Reviewer content-protection gate (VT-087): a reviewer may approve via
+    // approveAnnotation but must never mutate the annotation's spatial content.
+    if (
+      actorRole === 'REVIEWER' &&
+      (command.position !== undefined ||
+        command.normal !== undefined ||
+        command.cameraState !== undefined)
+    ) {
+      return {
+        status: 'FORBIDDEN',
+        message: 'Reviewer may only approve; modifying annotation content is forbidden.',
+      };
+    }
+
+    // 0c. Approve-only gate (VT-087, TC26): a REVIEWER may reach RESOLVED only through
+    // approveAnnotation, so the Idempotency-Key and replay guarantees cannot be bypassed via PATCH.
+    // Other transitions (OPEN <-> IN_PROGRESS, reopen) and PROJECT_LEAD stay on PATCH.
+    if (actorRole === 'REVIEWER' && command.status === 'RESOLVED' && origin !== 'approve') {
+      return {
+        status: 'FORBIDDEN',
+        message: 'Reviewers resolve annotations through POST /api/v1/annotations/:id/approve.',
+      };
+    }
+
     // 1. Optimistic Concurrency Pre-Check
     if (current.version !== command.expectedVersion) {
       const serverSnapshot = this.toDomainSnapshot(current);
@@ -371,6 +446,20 @@ export class AnnotationService {
         status: 'CONCURRENCY_CONFLICT',
         currentVersion: current.version,
         serverSnapshot,
+      };
+    }
+
+    // 1b. Re-resolve guard (TC21 approve, TC25 PATCH): RESOLVED -> RESOLVED is not a
+    // transition. The shared policy skips same-status patches, which would otherwise
+    // bump the version a second time. Runs after the OCC check so stale requests stay 409.
+    if (command.status === 'RESOLVED' && current.status === 'RESOLVED') {
+      await this.repo.appendAuditLog(
+        this.buildOperationalLog(id, actorId, 'INVARIANT_VIOLATION', command.expectedVersion, current.version),
+      );
+      return {
+        status: 'INVARIANT_VIOLATED',
+        reasonCode: 'INVARIANT_VIOLATED',
+        message: 'Already resolved; cannot resolve again.',
       };
     }
 

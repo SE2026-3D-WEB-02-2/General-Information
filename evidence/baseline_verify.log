@@ -1,0 +1,52 @@
+
+> spriter-3d-review@0.1.0 verify
+> npm run arch:check && npm test
+
+
+> spriter-3d-review@0.1.0 arch:check
+> node scripts/arch-check.mjs
+
+✔ Architecture & Agent Guardrail Check PASSED (43 source files & 13 AI Agent docs verified).
+
+> spriter-3d-review@0.1.0 test
+> node --test packages/shared/test/*.spec.ts apps/api/test/*.spec.ts apps/web/test/*.spec.ts
+
+▶ @spriter/api — Full Stream A Backend Suite (M1–M4: [A1]–[A10])
+  ✔ 1. [A2/A4] Protects server-side spatial lock invariant when annotation is already RESOLVED (8.3139ms)
+  ✔ 2. [A2/A4] Prevents Lost Update when two users concurrently update the same annotation and strips internal DB fields (1.8973ms)
+  ✔ 3. [A2/A8/A9] Domain race simulation: 984 concurrent tasks achieve 0 Lost Updates and 7-day operational log TTL (97.7267ms)
+  ✔ 4. [A6] Enforces Export JSON v1, Import fileHash check (409), and per-annotation validation rollback (422) (3.5739ms)
+  ✔ 5. [A3] Enforces JWT Authentication (401) and RBAC Permission Gate (403 FORBIDDEN_OPERATION on ARCHIVE/DELETE by non-author REVIEWER) (282.3257ms)
+  ✔ 6. [A4] Supports Cursor Pagination, Status Filtering, Reconnect updatedAfter, and Comment Version Increment (150.9808ms)
+  ✔ 7. [A5] Generates Presigned S3/MinIO Upload/Download URLs and rejects >1MB or raw .glb binary on API (413) (104.5837ms)
+  ✔ 8. [A1/A2] PostgresAnnotationRepository executes atomic SQL Compare-And-Swap (WHERE id = $1 AND version = $2) inside a transaction (1.9793ms)
+  ✔ 9. [A7] SocketRealtimeGateway enforces JWT auth on room:join, broadcasts post-commit events, and returns missedAnnotations on reconnect (126.1778ms)
+  ✔ 10. [A8/A9/A10] Verifies 984 concurrent HTTP/App tasks p95 <= 2.5s, 7-day Purge Worker, and ADR-001 (/metrics) >8% conflict trigger (347.1218ms)
+✔ @spriter/api — Full Stream A Backend Suite (M1–M4: [A1]–[A10]) (1131.433ms)
+▶ Stream C — collaboration workflow
+  ✔ C1/C2: store notifies sidebar, focuses camera on sidebar selection, and captures a valid surface pick (6.1174ms)
+  ✔ C1: searches mesh name, author and full discussion beyond the shortened title (0.7843ms)
+  ✔ C3/C8: preserves a status attempt on 409, can accept server, and refuses invalid retry (6.5537ms)
+  ✔ C4: import checks file hash and reports invalid items before changing the mock workspace (54.9486ms)
+  ✔ C5: HTTP adapter sends expectedVersion and reads 409/422 without overwriting the client state (118.2407ms)
+  ✔ C6: upload flow hashes, requests URL, PUTs binary with progress, then confirms (1.7017ms)
+  ✔ C7: realtime adapter ignores old versions, applies a newer snapshot and fetches a detected gap (30.7436ms)
+✔ Stream C — collaboration workflow (225.4202ms)
+▶ @spriter/web — ViewportBridge, Workspace Store & UI Controller Isolation
+  ✔ 1. Verifies UI Controller testability in isolation (out-of-order WebSocket protection, 409 preservation & retry on latest) (13.5305ms)
+  ✔ 2. Coordinates ViewportBridge raycast picks, pin selection, camera focus, and version gap detection in AnnotationWorkspaceStore (5.6102ms)
+✔ @spriter/web — ViewportBridge, Workspace Store & UI Controller Isolation (21.422ms)
+▶ @spriter/shared — Pure Domain Policy & Unified Contracts
+  ✔ 1. Enforces state transition matrix and allows RESOLVED if ANY comment in thread has >= 10 chars (even if last comment is short) (7.285ms)
+  ✔ 2. Validates golden ExportFileV1 fixture and reports per-item errors on invalid import items (9.4236ms)
+  ✔ 3. Classifies realtime version steps for normal update, stale packet, and missed-packet gap (0.4652ms)
+  ✔ 4. Validates SurfacePick contract and actor permissions (0.79ms)
+✔ @spriter/shared — Pure Domain Policy & Unified Contracts (24.0016ms)
+ℹ tests 23
+ℹ suites 4
+ℹ pass 23
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 2814.9014
