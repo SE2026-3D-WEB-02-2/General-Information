@@ -1,0 +1,44 @@
+🚀 Spriter Backend API listening on http://localhost:0
+{
+  "environment": "node:http on localhost + in-memory store (simulated)",
+  "concurrentTasks": 100,
+  "rounds": 5,
+  "p95TargetMs": 3000,
+  "A_contention": {
+    "integrityOk": true,
+    "latencyMs": {
+      "count": 500,
+      "p50": 45.88,
+      "p95": 272.77,
+      "p99": 276.09,
+      "max": 278.75
+    },
+    "meetsP95Target": true
+  },
+  "B_throughput": {
+    "integrityOk": true,
+    "latencyMs": {
+      "count": 500,
+      "p50": 48.66,
+      "p95": 105.46,
+      "p99": 108.52,
+      "max": 113.05
+    },
+    "meetsP95Target": true
+  },
+  "C_retry_same_key": {
+    "integrityOk": true,
+    "statusesSeen": [
+      200,
+      409
+    ],
+    "latencyMs": {
+      "count": 500,
+      "p50": 52.15,
+      "p95": 94.42,
+      "p99": 96.54,
+      "max": 96.61
+    },
+    "meetsP95Target": true
+  }
+}

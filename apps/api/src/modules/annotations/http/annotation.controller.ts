@@ -96,7 +96,9 @@ export class AnnotationController {
       req.params.id,
       req.actorId,
       req.body,
-      req.actorRole ?? 'REVIEWER',
+      // No default: an omitted role means "legacy/generic caller" and is not subject to
+      // the VT-087 reviewer content restriction. Production always sends an explicit role.
+      req.actorRole,
     );
 
     switch (result.status) {
@@ -132,6 +134,77 @@ export class AnnotationController {
         return {
           statusCode: 200 as const,
           body: result.snapshot,
+        };
+    }
+  }
+
+  /** Reviewer approval endpoint (VT-087): maps service outcome to HTTP status. */
+  public async approveAnnotation(req: {
+    params: { id: string };
+    actorId: string;
+    actorRole?: UserRole;
+    body: { expectedVersion: number; idempotencyKey?: string };
+    idempotencyKey?: string;
+  }) {
+    if (!Number.isInteger(req.body.expectedVersion) || req.body.expectedVersion < 1) {
+      return {
+        statusCode: 400 as const,
+        body: {
+          errorCode: 'MISSING_EXPECTED_VERSION',
+          message: 'expectedVersion (int >= 1) is required',
+        },
+      };
+    }
+
+    const result = await this.annotationService.approveAnnotation(
+      req.params.id,
+      req.actorId,
+      {
+        expectedVersion: req.body.expectedVersion,
+        // Standard Idempotency-Key HTTP header wins; body field is accepted as a fallback.
+        idempotencyKey: req.idempotencyKey ?? req.body.idempotencyKey,
+      },
+      req.actorRole ?? 'REVIEWER',
+    );
+
+    switch (result.status) {
+      case 'NOT_FOUND':
+        return {
+          statusCode: 404 as const,
+          body: { errorCode: 'ANNOTATION_NOT_FOUND', message: 'Annotation not found' },
+        };
+      case 'FORBIDDEN':
+        return {
+          statusCode: 403 as const,
+          body: { errorCode: 'FORBIDDEN_OPERATION', message: result.message },
+        };
+      case 'INVALID_INPUT':
+        return {
+          statusCode: 422 as const,
+          body: { errorCode: result.errorCode, message: result.message },
+        };
+      case 'CONCURRENCY_CONFLICT':
+        return {
+          statusCode: 409 as const,
+          body: {
+            errorCode: 'CONCURRENCY_CONFLICT',
+            message: 'Annotation was modified by another user. Inspect serverSnapshot before retrying.',
+            currentVersion: result.currentVersion,
+            serverSnapshot: result.serverSnapshot,
+          },
+        };
+      case 'INVARIANT_VIOLATED':
+        return {
+          statusCode: 422 as const,
+          body: {
+            errorCode: result.reasonCode,
+            message: result.message,
+          },
+        };
+      case 'OK':
+        return {
+          statusCode: 200 as const,
+          body: { snapshot: result.snapshot },
         };
     }
   }

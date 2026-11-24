@@ -1,0 +1,17 @@
+commit eb2cd62f7aa928c7cad63afb70ce7f4150ac7924
+Author: Nils Nielsen <nilsyajima@gmail.com>
+Date:   Sun Nov 15 00:36:21 2026 +0700
+
+    feat(vt-087): reviewer approval with OCC + idempotency guard
+    
+    - POST /api/v1/annotations/:id/approve (RBAC: REVIEWER/PROJECT_LEAD)
+    - Idempotency-Key guard in AnnotationService.approveAnnotation
+    - Reviewer content-protection gate in updateWithConcurrencyControl
+    - canActorModifyAnnotation accepts optional role
+    - Idempotency-Key header plumbed through the router
+
+ apps/api/src/http/app-router.ts                    | 13 ++++
+ .../annotations/domain/annotation.service.ts       | 64 +++++++++++++++++-
+ .../annotations/http/annotation.controller.ts      | 75 +++++++++++++++++++++-
+ packages/shared/src/contracts/api-contracts.ts     |  2 +-
+ 4 files changed, 151 insertions(+), 3 deletions(-)

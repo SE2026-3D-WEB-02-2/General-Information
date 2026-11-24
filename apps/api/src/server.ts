@@ -2,13 +2,17 @@ import http from 'node:http';
 import { URL } from 'node:url';
 import { MAX_API_JSON_BODY_BYTES, SpriterApiApplication } from './http/app-router.ts';
 
+function firstHeader(value: string | string[] | undefined): string | undefined {
+  return Array.isArray(value) ? value[0] : value;
+}
+
 export function startSpriterHttpServer(port = Number(process.env.PORT ?? 4000)) {
   const app = new SpriterApiApplication();
 
   const server = http.createServer(async (req, res) => {
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PATCH, DELETE, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, Idempotency-Key');
 
     if (req.method === 'OPTIONS') {
       res.writeHead(204);
@@ -70,6 +74,8 @@ export function startSpriterHttpServer(port = Number(process.env.PORT ?? 4000)) 
         authorization: req.headers.authorization,
         contentType,
         contentLength: Math.max(contentLengthHeader, totalBytes),
+        // VT-087: approve needs the client's Idempotency-Key (node lower-cases header names).
+        idempotencyKey: firstHeader(req.headers['idempotency-key']),
       },
       body: parsedBody,
     });

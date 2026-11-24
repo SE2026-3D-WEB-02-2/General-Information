@@ -16,6 +16,8 @@
     "test:shared": "node --test packages/shared/test/*.spec.ts",
     "test:api": "node --test apps/api/test/*.spec.ts",
     "test:web": "node --test apps/web/test/*.spec.ts",
+    "test:vt087": "node --test apps/api/test/reviewer-approval.spec.ts",
+    "test:vt087:load": "node scripts/vt087-load-test.mjs",
     "test:load": "node scripts/load-test-984.mjs",
     "arch:check": "node scripts/arch-check.mjs",
     "verify": "npm run arch:check && npm test",

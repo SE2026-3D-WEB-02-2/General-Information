@@ -1,0 +1,19 @@
+▶ VT-087 Reviewer Approval — vertical slice
+  ✔ TC01 READ — reviewer can list annotations (200, data present) (14.7774ms)
+  ✔ TC02 APPROVE — valid reviewer approval transitions to RESOLVED (4.0351ms)
+  ✔ TC03 NO-EDIT — reviewer PATCH to position is FORBIDDEN (403) and data unchanged (2.5645ms)
+  ✔ TC04 NO-DELETE — reviewer DELETE is FORBIDDEN (403) (1.8215ms)
+  ✔ TC05 MEMBER — non-privileged role cannot approve (403) (0.7685ms)
+  ✔ TC06 UNAUTHORIZED — approve without a valid token is UNAUTHORIZED (401) (1.1506ms)
+  ✔ TC07 OLD-VERSION — stale-version approve is CONCURRENCY_CONFLICT (409), data untouched (4.774ms)
+  ✔ TC08 CONCURRENT — two simultaneous approves leave exactly one resolved (4.5945ms)
+  ✔ TC09 IDEMPOTENT — re-submitting the same approve key has no second side effect (2.2642ms)
+✔ VT-087 Reviewer Approval — vertical slice (40.9819ms)
+ℹ tests 9
+ℹ suites 1
+ℹ pass 9
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1856.0337
