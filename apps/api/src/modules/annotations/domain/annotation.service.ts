@@ -11,14 +11,19 @@ import {
   type ListAnnotationsQueryDto,
   type OperationalTelemetryDto,
   type PaginatedAnnotationsResponseDto,
+  type RestoreAnnotationRequestDto,
   type UserRole,
   type Vec3,
+  UNDO_DELETE_WINDOW_MS,
   canActorModifyAnnotation,
   evaluateAnnotationMutation,
+  isUndoWindowOpen,
   validateExportPayload,
   validateSurfacePick,
 } from '@spriter/shared';
+import { randomBytes } from 'node:crypto';
 import { InMemoryAnnotationRepository } from '../adapters/in-memory.repository.ts';
+import { InMemoryUndoTombstoneStore } from '../adapters/in-memory-undo-tombstone.store.ts';
 import {
   type AnnotationRepositoryPort,
   type ClockPort,
@@ -26,6 +31,8 @@ import {
   OPERATIONAL_LOG_TTL_DAYS,
   type OperationalAuditLogEntry,
   type RealtimePublisherPort,
+  type UndoTombstone,
+  type UndoTombstoneStorePort,
 } from './ports.ts';
 
 export { OPERATIONAL_LOG_TTL_DAYS, type InternalDbAnnotationRecord, type OperationalAuditLogEntry };
@@ -42,9 +49,21 @@ export type UpdateAnnotationOutcome =
     };
 
 export type DeleteAnnotationOutcome =
-  | { status: 'OK'; deletedId: string }
+  | { status: 'OK'; deletedId: string; undoToken: string; undoExpiresAt: string }
   | { status: 'NOT_FOUND' }
-  | { status: 'FORBIDDEN'; message: string };
+  | { status: 'FORBIDDEN'; message: string }
+  | { status: 'CONCURRENCY_CONFLICT' };
+
+export type RestoreAnnotationOutcome =
+  | { status: 'OK'; snapshot: AnnotationDomainSnapshot }
+  | { status: 'UNDO_NOT_AVAILABLE' }
+  | { status: 'FORBIDDEN'; message: string }
+  | { status: 'UNDO_WINDOW_EXPIRED' }
+  | { status: 'RESTORE_ID_CONFLICT' }
+  | { status: 'RESTORE_FAILED'; message: string };
+
+/** [VT-085] A delete re-reads and retries when a concurrent write moved the version under it. */
+const MAX_DELETE_CAS_ATTEMPTS = 3;
 
 export type ImportAnnotationsOutcome =
   | { status: 'OK'; importedCount: number; annotations: AnnotationDomainSnapshot[] }
@@ -63,15 +82,21 @@ export class AnnotationService {
   private readonly repo: AnnotationRepositoryPort;
   private readonly clock: ClockPort;
   private readonly realtime: RealtimePublisherPort;
+  private readonly tombstones: UndoTombstoneStorePort;
+  private readonly newUndoToken: () => string;
 
   constructor(
     repo?: AnnotationRepositoryPort,
     clock?: ClockPort,
     realtime?: RealtimePublisherPort,
+    tombstones?: UndoTombstoneStorePort,
+    newUndoToken?: () => string,
   ) {
     this.repo = repo ?? new InMemoryAnnotationRepository();
     this.clock = clock ?? { now: () => new Date() };
     this.realtime = realtime ?? { publishToModelRoom: () => {} };
+    this.tombstones = tombstones ?? new InMemoryUndoTombstoneStore();
+    this.newUndoToken = newUndoToken ?? (() => randomBytes(16).toString('hex'));
   }
 
   public seedRecord(record: InternalDbAnnotationRecord): void {
@@ -459,50 +484,139 @@ export class AnnotationService {
     };
   }
 
+  /**
+   * [VT-085] Delete keeps an exact tombstone for UNDO_DELETE_WINDOW_MS. The delete is a compare-and-delete on
+   * the version that was read, so a comment committed in between is never missing from the tombstone.
+   */
   public async deleteAnnotation(
     id: string,
     actorId: string,
     actorRole: UserRole = 'REVIEWER',
   ): Promise<DeleteAnnotationOutcome> {
-    const current = await this.repo.findById(id);
-    if (!current) {
-      return { status: 'NOT_FOUND' };
-    }
+    for (let attempt = 0; attempt < MAX_DELETE_CAS_ATTEMPTS; attempt++) {
+      const current = await this.repo.findById(id);
+      if (!current) {
+        return { status: 'NOT_FOUND' };
+      }
 
-    const canDelete = canActorModifyAnnotation(
-      { id: actorId, role: actorRole },
-      { authorId: current.author_id },
-      'DELETE',
-    );
-    if (!canDelete) {
+      const canDelete = canActorModifyAnnotation(
+        { id: actorId, role: actorRole },
+        { authorId: current.author_id },
+        'DELETE',
+      );
+      if (!canDelete) {
+        return {
+          status: 'FORBIDDEN',
+          message: 'Only the annotation author or a PROJECT_LEAD can delete an annotation.',
+        };
+      }
+
+      const now = this.clock.now();
+      const deleteAudit = this.buildOperationalLog(
+        id,
+        actorId,
+        'UPDATED',
+        current.version,
+        current.version + 1,
+      );
+      const deleted = await this.repo.deleteIfVersion(id, current.version, deleteAudit);
+      if (!deleted) {
+        continue; // version moved or row vanished: re-read
+      }
+
+      const tombstone: UndoTombstone = {
+        record: structuredClone(current),
+        undoToken: this.newUndoToken(),
+        deletedBy: actorId,
+        deletedAt: now.toISOString(),
+        undoExpiresAt: new Date(now.getTime() + UNDO_DELETE_WINDOW_MS).toISOString(),
+      };
+      try {
+        await this.tombstones.save(tombstone);
+      } catch (error) {
+        // Never leave a delete without its undo: put the row back and surface the error.
+        await this.repo.insert(current, this.buildOperationalLog(id, actorId, 'CREATED', current.version, current.version));
+        throw error;
+      }
+
+      this.realtime.publishToModelRoom(current.model_id, {
+        type: 'annotation:deleted',
+        eventId: deleteAudit.eventId,
+        modelId: current.model_id,
+        emittedAt: now.toISOString(),
+        annotationId: id,
+      });
+
+      return {
+        status: 'OK',
+        deletedId: id,
+        undoToken: tombstone.undoToken,
+        undoExpiresAt: tombstone.undoExpiresAt,
+      };
+    }
+    return { status: 'CONCURRENCY_CONFLICT' };
+  }
+
+  /**
+   * [VT-085] Restore-or-explicit-error: returns the exact deleted snapshot (version + 1) or an error that
+   * leaves state unchanged. The tombstone is put back on every failure after it was claimed.
+   */
+  public async restoreAnnotation(
+    id: string,
+    actorId: string,
+    actorRole: UserRole,
+    dto: RestoreAnnotationRequestDto,
+  ): Promise<RestoreAnnotationOutcome> {
+    const tombstone = await this.tombstones.peek(id);
+    if (!tombstone || tombstone.undoToken !== dto.undoToken) {
+      return { status: 'UNDO_NOT_AVAILABLE' };
+    }
+    if (actorId !== tombstone.deletedBy && actorRole !== 'PROJECT_LEAD') {
       return {
         status: 'FORBIDDEN',
-        message: 'Only the annotation author or a PROJECT_LEAD can delete an annotation.',
+        message: 'Only the user who deleted the annotation or a PROJECT_LEAD can undo it.',
+      };
+    }
+    const now = this.clock.now();
+    if (!isUndoWindowOpen(now.getTime(), tombstone.undoExpiresAt)) {
+      return { status: 'UNDO_WINDOW_EXPIRED' };
+    }
+
+    const claimed = await this.tombstones.claim(id, dto.undoToken);
+    if (!claimed) {
+      return { status: 'UNDO_NOT_AVAILABLE' }; // another request restored it first
+    }
+    if (await this.repo.findById(id)) {
+      await this.tombstones.save(claimed);
+      return { status: 'RESTORE_ID_CONFLICT' };
+    }
+
+    const nowIso = now.toISOString();
+    const restored: InternalDbAnnotationRecord = {
+      ...structuredClone(claimed.record),
+      version: claimed.record.version + 1,
+      updated_at: nowIso,
+    };
+    const audit = this.buildOperationalLog(id, actorId, 'CREATED', claimed.record.version, restored.version);
+    try {
+      await this.repo.insert(restored, audit);
+    } catch (error) {
+      await this.tombstones.save(claimed);
+      return {
+        status: 'RESTORE_FAILED',
+        message: `Restore could not be saved (${(error as Error).message}). Nothing was changed; retry before the undo window closes.`,
       };
     }
 
-    const nowIso = this.clock.now().toISOString();
-    const deleteAudit = this.buildOperationalLog(
-      id,
-      actorId,
-      'UPDATED',
-      current.version,
-      current.version + 1,
-    );
-    const deleted = await this.repo.deleteById(id, deleteAudit);
-    if (!deleted) {
-      return { status: 'NOT_FOUND' };
-    }
-
-    this.realtime.publishToModelRoom(current.model_id, {
-      type: 'annotation:deleted',
-      eventId: deleteAudit.eventId,
-      modelId: current.model_id,
+    const snapshot = this.toDomainSnapshot(restored);
+    this.realtime.publishToModelRoom(restored.model_id, {
+      type: 'annotation:created',
+      eventId: audit.eventId,
+      modelId: restored.model_id,
       emittedAt: nowIso,
-      annotationId: id,
+      annotation: snapshot,
     });
-
-    return { status: 'OK', deletedId: id };
+    return { status: 'OK', snapshot };
   }
 
   public async exportModelAnnotations(

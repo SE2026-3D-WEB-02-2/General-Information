@@ -9,6 +9,7 @@ import {
   validateUnitNormal,
   validateVec3,
 } from '../domain/annotation-policy.ts';
+import type { UndoErrorCode } from './undo-contracts.ts';
 
 // ============================================================================
 // 1. AUTH & PERMISSIONS CONTRACTS
@@ -163,7 +164,8 @@ export type ApiErrorCode =
   | 'MODEL_UPLOAD_NOT_READY'
   | 'CONCURRENCY_CONFLICT'
   | 'IMPORT_MODEL_HASH_MISMATCH'
-  | 'IMPORT_VALIDATION_FAILED';
+  | 'IMPORT_VALIDATION_FAILED'
+  | UndoErrorCode;
 
 export interface ImportItemError {
   index: number;

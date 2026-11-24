@@ -70,6 +70,11 @@ export interface AnnotationRepositoryPort {
     audit: OperationalAuditLogEntry,
   ): Promise<boolean>;
   deleteById(id: string, audit: OperationalAuditLogEntry): Promise<boolean>;
+  /**
+   * [VT-085] Compare-And-Delete (SQL: DELETE FROM annotations WHERE id = $1 AND version = $2).
+   * Returns false if the row is gone or its version moved, so the caller can re-read before tombstoning.
+   */
+  deleteIfVersion(id: string, expectedVersion: number, audit: OperationalAuditLogEntry): Promise<boolean>;
   bulkReplaceOrInsert(
     modelId: string,
     records: InternalDbAnnotationRecord[],
@@ -78,4 +83,21 @@ export interface AnnotationRepositoryPort {
   appendAuditLog(audit: OperationalAuditLogEntry): Promise<void>;
   getAuditLogs(): ReadonlyArray<OperationalAuditLogEntry>;
   purgeExpiredAuditLogs(now: Date): Promise<number>;
+}
+
+/** [VT-085] Exact copy of a deleted row, kept for the undo window. */
+export interface UndoTombstone {
+  record: InternalDbAnnotationRecord;
+  undoToken: string;
+  deletedBy: string;
+  deletedAt: string;
+  undoExpiresAt: string;
+}
+
+export interface UndoTombstoneStorePort {
+  /** Stores (or puts back) a tombstone; implementations may drop tombstones already expired at `deletedAt`. */
+  save(tombstone: UndoTombstone): Promise<void>;
+  peek(annotationId: string): Promise<UndoTombstone | undefined>;
+  /** Atomically removes and returns the tombstone iff the token matches; at most one caller can win. */
+  claim(annotationId: string, undoToken: string): Promise<UndoTombstone | undefined>;
 }
